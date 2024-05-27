@@ -1,22 +1,22 @@
 /*
-  velo2cam_calibration - Automatic calibration algorithm for extrinsic
+  velo2cam_stereoHough - Automatic calibration algorithm for extrinsic
   parameters of a stereo camera and a velodyne Copyright (C) 2017-2021 Jorge
   Beltran, Carlos Guindel
 
-  This file is part of velo2cam_calibration.
+  This file is part of velo2cam_stereoHough.
 
-  velo2cam_calibration is free software: you can redistribute it and/or modify
+  velo2cam_stereoHough is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 2 of the License, or
   (at your option) any later version.
 
-  velo2cam_calibration is distributed in the hope that it will be useful,
+  velo2cam_stereoHough is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
 
   You should have received a copy of the GNU General Public License
-  along with velo2cam_calibration.  If not, see <http://www.gnu.org/licenses/>.
+  along with velo2cam_stereoHough.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -37,8 +37,8 @@
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <std_msgs/Empty.h>
-#include <velo2cam_calibration/ClusterCentroids.h>
-#include <velo2cam_calibration/MonocularConfig.h>
+#include <velo2cam_stereoHough/ClusterCentroids.h>
+#include <velo2cam_stereoHough/MonocularConfig.h>
 #include <velo2cam_utils.h>
 
 #include <opencv2/aruco.hpp>
@@ -447,7 +447,7 @@ std:
         centers_cloud_pub.publish(centers_pointcloud);
       }
 
-      velo2cam_calibration::ClusterCentroids to_send;
+      velo2cam_stereoHough::ClusterCentroids to_send;
       to_send.header = msg->header;
       to_send.cluster_iterations = frames_used_;
       to_send.total_iterations = frames_proc_;
@@ -494,7 +494,7 @@ std:
   }
 }
 
-void param_callback(velo2cam_calibration::MonocularConfig &config,
+void param_callback(velo2cam_stereoHough::MonocularConfig &config,
                     uint32_t level) {
   marker_size_ = config.marker_size;
   ROS_INFO("New marker_size_: %f", marker_size_);
@@ -532,7 +532,7 @@ int main(int argc, char **argv) {
         nh_.advertise<sensor_msgs::PointCloud2>("cumulative_cloud", 1);
   }
   clusters_pub =
-      nh_.advertise<velo2cam_calibration::ClusterCentroids>("centers_cloud", 1);
+      nh_.advertise<velo2cam_stereoHough::ClusterCentroids>("centers_cloud", 1);
 
   string csv_name;
 
@@ -564,9 +564,9 @@ int main(int argc, char **argv) {
   sync.registerCallback(boost::bind(&imageCallback, _1, _2));
 
   // ROS param callback
-  dynamic_reconfigure::Server<velo2cam_calibration::MonocularConfig> server;
+  dynamic_reconfigure::Server<velo2cam_stereoHough::MonocularConfig> server;
   dynamic_reconfigure::Server<
-      velo2cam_calibration::MonocularConfig>::CallbackType f;
+      velo2cam_stereoHough::MonocularConfig>::CallbackType f;
   f = boost::bind(param_callback, _1, _2);
   server.setCallback(f);
 

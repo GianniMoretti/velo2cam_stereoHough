@@ -1,22 +1,22 @@
 /*
-  velo2cam_calibration - Automatic calibration algorithm for extrinsic
+  velo2cam_stereoHough - Automatic calibration algorithm for extrinsic
   parameters of a stereo camera and a velodyne Copyright (C) 2017-2021 Jorge
   Beltran, Carlos Guindel
 
-  This file is part of velo2cam_calibration.
+  This file is part of velo2cam_stereoHough.
 
-  velo2cam_calibration is free software: you can redistribute it and/or modify
+  velo2cam_stereoHough is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 2 of the License, or
   (at your option) any later version.
 
-  velo2cam_calibration is distributed in the hope that it will be useful,
+  velo2cam_stereoHough is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
 
   You should have received a copy of the GNU General Public License
-  along with velo2cam_calibration.  If not, see <http://www.gnu.org/licenses/>.
+  along with velo2cam_stereoHough.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -33,7 +33,7 @@
 #include <pcl_msgs/PointIndices.h>
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
-#include <velo2cam_calibration/PlaneConfig.h>
+#include <velo2cam_stereoHough/PlaneConfig.h>
 
 class SACSegmentator {
  public:
@@ -47,8 +47,8 @@ class SACSegmentator {
 
   Eigen::Vector3f Axis;
 
-  dynamic_reconfigure::Server<velo2cam_calibration::PlaneConfig> server;
-  dynamic_reconfigure::Server<velo2cam_calibration::PlaneConfig>::CallbackType
+  dynamic_reconfigure::Server<velo2cam_stereoHough::PlaneConfig> server;
+  dynamic_reconfigure::Server<velo2cam_stereoHough::PlaneConfig>::CallbackType
       f;
 
   SACSegmentator() : nh_("~"), threshold_(0.1) {
@@ -138,7 +138,7 @@ class SACSegmentator {
     coeff_pub.publish(m_coeff);
   }
 
-  void param_callback(velo2cam_calibration::PlaneConfig &config,
+  void param_callback(velo2cam_stereoHough::PlaneConfig &config,
                       uint32_t level) {
     threshold_ = config.threshold;
     ROS_INFO("New distance threshold: %f", threshold_);

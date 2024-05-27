@@ -1,12 +1,11 @@
 <?xml version="1.0"?>
 <package>
-  <name>velo2cam_calibration</name>
+  <name>velo2cam_stereoHough</name>
   <version>1.0.1</version>
-  <description>The velo2cam_calibration package</description>
+  <description>The velo2cam_stereoHough package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
-  <maintainer email="jbeltran@ing.uc3m.es">Jorge Beltran</maintainer>
-  <maintainer email="cguindel@ing.uc3m.es">Carlos Guindel</maintainer>
+  <maintainer email="jinnw.moretti99@gmail.com">Gianni Moretti</maintainer>
 
   <!-- One license tag required, multiple allowed, one license per tag -->
   <license>GPLv2</license>
@@ -16,8 +15,7 @@
 
   <!-- Author tags are optional, mutiple are allowed, one per tag -->
   <!-- Authors do not have to be maintianers, but could be -->
-  <author email="jbeltran@ing.uc3m.es">Jorge Beltran</author>
-  <author email="cguindel@ing.uc3m.es">Carlos Guindel</author>
+  <author email="jinnw.moretti99@gmail.com">Gianni Moretti</author>
 
   <!-- The *_depend tags are used to specify dependencies -->
   <!-- Dependencies can be catkin packages or system dependencies -->

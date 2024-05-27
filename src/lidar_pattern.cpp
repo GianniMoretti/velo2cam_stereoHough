@@ -1,22 +1,22 @@
 /*
-  velo2cam_calibration - Automatic calibration algorithm for extrinsic
+  velo2cam_stereoHough - Automatic calibration algorithm for extrinsic
   parameters of a stereo camera and a velodyne Copyright (C) 2017-2021 Jorge
   Beltran, Carlos Guindel
 
-  This file is part of velo2cam_calibration.
+  This file is part of velo2cam_stereoHough.
 
-  velo2cam_calibration is free software: you can redistribute it and/or modify
+  velo2cam_stereoHough is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 2 of the License, or
   (at your option) any later version.
 
-  velo2cam_calibration is distributed in the hope that it will be useful,
+  velo2cam_stereoHough is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
 
   You should have received a copy of the GNU General Public License
-  along with velo2cam_calibration.  If not, see <http://www.gnu.org/licenses/>.
+  along with velo2cam_stereoHough.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -37,21 +37,19 @@
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <std_msgs/Empty.h>
-#include <velo2cam_calibration/ClusterCentroids.h>
-#include <velo2cam_calibration/LidarConfig.h>
+#include <velo2cam_stereoHough/ClusterCentroids.h>
+#include <velo2cam_stereoHough/LidarConfig.h>
 #include <velo2cam_utils.h>
 
 using namespace std;
 using namespace sensor_msgs;
 
-ros::Publisher cumulative_pub, centers_pub, pattern_pub, range_pub, coeff_pub,
-    rotated_pattern_pub;
+ros::Publisher cumulative_pub, centers_pub, pattern_pub, range_pub, coeff_pub, rotated_pattern_pub;
 pcl::PointCloud<pcl::PointXYZ>::Ptr cumulative_cloud;
 
 // Dynamic parameters
 double threshold_;
-double passthrough_radius_min_, passthrough_radius_max_, circle_radius_,
-    centroid_distance_min_, centroid_distance_max_;
+double passthrough_radius_min_, passthrough_radius_max_, circle_radius_, centroid_distance_min_, centroid_distance_max_;
 double delta_width_circles_, delta_height_circles_;
 int rings_count_;
 Eigen::Vector3f axis_;
@@ -433,7 +431,7 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
     pcl::toROSMsg(*centers_cloud, ros2_pointcloud);
     ros2_pointcloud.header = laser_cloud->header;
 
-    velo2cam_calibration::ClusterCentroids to_send;
+    velo2cam_stereoHough::ClusterCentroids to_send;
     to_send.header = laser_cloud->header;
     to_send.cluster_iterations = clouds_used_;
     to_send.total_iterations = clouds_proc_;
@@ -465,7 +463,7 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
   }
 }
 
-void param_callback(velo2cam_calibration::LidarConfig &config, uint32_t level) {
+void param_callback(velo2cam_stereoHough::LidarConfig &config, uint32_t level) {
   passthrough_radius_min_ = config.passthrough_radius_min;
   ROS_INFO("[LiDAR] New passthrough_radius_min_ threshold: %f",
            passthrough_radius_min_);
@@ -505,14 +503,14 @@ int main(int argc, char **argv) {
   ros::Subscriber sub = nh_.subscribe("cloud1", 1, callback);
   pcl::console::setVerbosityLevel(pcl::console::L_ALWAYS);
 
-  range_pub = nh_.advertise<PointCloud2>("range_filtered_cloud", 1);
+  range_pub = nh_.advertise<PointCloud2>("range_filtered_cloud", 1);  // ERA POINTS?
   if (DEBUG) {
     pattern_pub = nh_.advertise<PointCloud2>("pattern_circles", 1);
     rotated_pattern_pub = nh_.advertise<PointCloud2>("rotated_pattern", 1);
     cumulative_pub = nh_.advertise<PointCloud2>("cumulative_cloud", 1);
   }
   centers_pub =
-      nh_.advertise<velo2cam_calibration::ClusterCentroids>("centers_cloud", 1);
+      nh_.advertise<velo2cam_stereoHough::ClusterCentroids>("centers_cloud", 1);
   coeff_pub = nh_.advertise<pcl_msgs::ModelCoefficients>("plane_model", 1);
 
   string csv_name;
@@ -536,9 +534,8 @@ int main(int argc, char **argv) {
   cumulative_cloud =
       pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
 
-  dynamic_reconfigure::Server<velo2cam_calibration::LidarConfig> server;
-  dynamic_reconfigure::Server<velo2cam_calibration::LidarConfig>::CallbackType
-      f;
+  dynamic_reconfigure::Server<velo2cam_stereoHough::LidarConfig> server;
+  dynamic_reconfigure::Server<velo2cam_stereoHough::LidarConfig>::CallbackType f;
   f = boost::bind(param_callback, _1, _2);
   server.setCallback(f);
 

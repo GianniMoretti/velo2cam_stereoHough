@@ -1,22 +1,22 @@
 /*
-  velo2cam_calibration - Automatic calibration algorithm for extrinsic
+  velo2cam_stereoHough - Automatic calibration algorithm for extrinsic
   parameters of a stereo camera and a velodyne Copyright (C) 2017-2021 Jorge
   Beltran, Carlos Guindel
 
-  This file is part of velo2cam_calibration.
+  This file is part of velo2cam_stereoHough.
 
-  velo2cam_calibration is free software: you can redistribute it and/or modify
+  velo2cam_stereoHough is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 2 of the License, or
   (at your option) any later version.
 
-  velo2cam_calibration is distributed in the hope that it will be useful,
+  velo2cam_stereoHough is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
 
   You should have received a copy of the GNU General Public License
-  along with velo2cam_calibration.  If not, see <http://www.gnu.org/licenses/>.
+  along with velo2cam_stereoHough.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 /*
@@ -27,14 +27,14 @@
 #define velo2cam_utils_H
 
 #define PCL_NO_PRECOMPILE
-#define DEBUG 0
+#define DEBUG 1
 
 #include <pcl/search/kdtree.h>
 #include <pcl/segmentation/extract_clusters.h>
 
 #define TARGET_NUM_CIRCLES 4
-#define TARGET_RADIUS 0.12
-#define GEOMETRY_TOLERANCE 0.06
+#define TARGET_RADIUS 0.145
+#define GEOMETRY_TOLERANCE 0.3 //0.06 default
 
 using namespace std;
 
@@ -90,8 +90,7 @@ POINT_CLOUD_REGISTER_POINT_STRUCT(Velodyne::Point,
                                       intensity)(std::uint16_t, ring,
                                                  ring)(float, range, range));
 
-void sortPatternCenters(pcl::PointCloud<pcl::PointXYZ>::Ptr pc,
-                        vector<pcl::PointXYZ> &v) {
+void sortPatternCenters(pcl::PointCloud<pcl::PointXYZ>::Ptr pc, vector<pcl::PointXYZ> &v) {
   // 0 -- 1
   // |    |
   // 3 -- 2
@@ -101,18 +100,14 @@ void sortPatternCenters(pcl::PointCloud<pcl::PointXYZ>::Ptr pc,
   }
 
   // Transform points to polar coordinates
-  pcl::PointCloud<pcl::PointXYZ>::Ptr spherical_centers(
-      new pcl::PointCloud<pcl::PointXYZ>());
+  pcl::PointCloud<pcl::PointXYZ>::Ptr spherical_centers(new pcl::PointCloud<pcl::PointXYZ>());
   int top_pt = 0;
   int index = 0;  // Auxiliar index to be used inside loop
-  for (pcl::PointCloud<pcl::PointXYZ>::iterator pt = pc->points.begin();
-       pt < pc->points.end(); pt++, index++) {
+  for (pcl::PointCloud<pcl::PointXYZ>::iterator pt = pc->points.begin(); pt < pc->points.end(); pt++, index++) {
     pcl::PointXYZ spherical_center;
     spherical_center.x = atan2(pt->y, pt->x);  // Horizontal
-    spherical_center.y =
-        atan2(sqrt(pt->x * pt->x + pt->y * pt->y), pt->z);  // Vertical
-    spherical_center.z =
-        sqrt(pt->x * pt->x + pt->y * pt->y + pt->z * pt->z);  // Range
+    spherical_center.y = atan2(sqrt(pt->x * pt->x + pt->y * pt->y), pt->z);  // Vertical
+    spherical_center.z = sqrt(pt->x * pt->x + pt->y * pt->y + pt->z * pt->z);  // Range
     spherical_centers->push_back(spherical_center);
 
     if (spherical_center.y < spherical_centers->points[top_pt].y) {
@@ -202,8 +197,7 @@ void getCenterClusters(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in,
                        double cluster_tolerance = 0.10,
                        int min_cluster_size = 15, int max_cluster_size = 200,
                        bool verbosity = true) {
-  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(
-      new pcl::search::KdTree<pcl::PointXYZ>);
+  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
   tree->setInputCloud(cloud_in);
 
   std::vector<pcl::PointIndices> cluster_indices;
@@ -220,10 +214,9 @@ void getCenterClusters(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in,
          << cloud_in->points.size() << " points in cloud" << endl;
 
   for (std::vector<pcl::PointIndices>::iterator it = cluster_indices.begin();
-       it < cluster_indices.end(); it++) {
+    it < cluster_indices.end(); it++) {
     float accx = 0., accy = 0., accz = 0.;
-    for (vector<int>::iterator it2 = it->indices.begin();
-         it2 < it->indices.end(); it2++) {
+    for (vector<int>::iterator it2 = it->indices.begin(); it2 < it->indices.end(); it2++) {
       accx += cloud_in->at(*it2).x;
       accy += cloud_in->at(*it2).y;
       accz += cloud_in->at(*it2).z;

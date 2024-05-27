@@ -33,8 +33,9 @@
 #include <opencv2/opencv.hpp>
 
 class Masker {
- public:
+public:
   ros::NodeHandle nh_;
+  ros::NodeHandle nh;        // GLOBAL
 
   message_filters::Subscriber<stereo_msgs::DisparityImage> image_sub_;
   message_filters::Subscriber<sensor_msgs::Image> mask_sub_;
@@ -43,9 +44,7 @@ class Masker {
   bool isfreeobs_;
   int edges_threshold_;
 
-  typedef message_filters::sync_policies::ExactTime<stereo_msgs::DisparityImage,
-                                                    sensor_msgs::Image>
-      ExSync;
+  typedef message_filters::sync_policies::ExactTime<stereo_msgs::DisparityImage, sensor_msgs::Image> ExSync;
   message_filters::Synchronizer<ExSync> sync;
 
   Masker()
@@ -54,21 +53,18 @@ class Masker {
         mask_sub_(nh_, "mask", 1),
         sync(ExSync(100), image_sub_, mask_sub_) {
     masked_pub_ = nh_.advertise<stereo_msgs::DisparityImage>("output", 1);
-
     nh_.param("isFreeobs", isfreeobs_, false);
     nh_.param("edges_threshold", edges_threshold_, 16);
 
     sync.registerCallback(boost::bind(&Masker::callback, this, _1, _2));
   }
 
-  void callback(const stereo_msgs::DisparityImageConstPtr &disp,
-                const sensor_msgs::ImageConstPtr &ma) {
+  void callback(const stereo_msgs::DisparityImageConstPtr &disp, const sensor_msgs::ImageConstPtr &ma) {
     cv::Mat mask, binary_mask, output;
     cv_bridge::CvImageConstPtr cv_im;
 
     try {
-      cv_im = cv_bridge::toCvShare(disp->image, disp,
-                                   sensor_msgs::image_encodings::TYPE_32FC1);
+      cv_im = cv_bridge::toCvShare(disp->image, disp, sensor_msgs::image_encodings::TYPE_32FC1);
       mask = cv_bridge::toCvShare(ma, "mono8")->image;
     } catch (cv_bridge::Exception &e) {
       ROS_ERROR("CvBridge failed");
@@ -79,8 +75,7 @@ class Masker {
 
     if (isfreeobs_) {
       const static int OBSTACLE_LABEL = 32;
-      cv::Mat obs_pattern(mask.rows, mask.cols, CV_8UC1,
-                          cv::Scalar(OBSTACLE_LABEL));
+      cv::Mat obs_pattern(mask.rows, mask.cols, CV_8UC1, cv::Scalar(OBSTACLE_LABEL));
       cv::bitwise_and(mask, obs_pattern, binary_mask);
       binary_mask = binary_mask * (255.0 / OBSTACLE_LABEL);
     } else {
@@ -88,8 +83,7 @@ class Masker {
     }
 
     // Copy input disparity to another DisparityImage variable
-    stereo_msgs::DisparityImagePtr copy_disp =
-        boost::make_shared<stereo_msgs::DisparityImage>();
+    stereo_msgs::DisparityImagePtr copy_disp = boost::make_shared<stereo_msgs::DisparityImage>();
     copy_disp->valid_window.x_offset = disp->valid_window.x_offset;
     copy_disp->valid_window.y_offset = disp->valid_window.y_offset;
     copy_disp->valid_window.width = disp->valid_window.width;
@@ -116,8 +110,7 @@ class Masker {
 
     d_image.data.resize(d_image.step * d_image.height);
 
-    cv::Mat_<float> dmat(d_image.height, d_image.width,
-                         (float *)&d_image.data[0], d_image.step);
+    cv::Mat_<float> dmat(d_image.height, d_image.width, (float *)&d_image.data[0], d_image.step);
 
     // Check data
     ROS_ASSERT(dmat.data == &d_image.data[0]);

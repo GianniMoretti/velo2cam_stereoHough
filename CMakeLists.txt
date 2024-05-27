@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(velo2cam_calibration)
+project(velo2cam_stereoHough)
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -w ")
 
@@ -72,7 +72,7 @@ include_directories(
 add_executable(lidar_pattern src/lidar_pattern.cpp)
 add_executable(stereo_pattern src/stereo_pattern.cpp)
 add_executable(mono_qr_pattern src/mono_qr_pattern.cpp)
-add_executable(velo2cam_calibration src/velo2cam_calibration.cpp)
+add_executable(velo2cam_stereoHough src/velo2cam_stereoHough.cpp)
 add_executable(v2c_plane_segmentation src/plane.cpp)
 add_executable(v2c_disp_masker src/disp_masker.cpp)
 
@@ -80,23 +80,23 @@ add_executable(v2c_disp_masker src/disp_masker.cpp)
 ## as an example, message headers may need to be generated before nodes
 add_dependencies(lidar_pattern
   ${catkin_EXPORTED_TARGETS}
-  velo2cam_calibration_generate_messages_cpp
+  velo2cam_stereoHough_generate_messages_cpp
   ${PROJECT_NAME}_gencfg
 )
 add_dependencies(stereo_pattern
   ${catkin_EXPORTED_TARGETS}
-  velo2cam_calibration_generate_messages_cpp
+  velo2cam_stereoHough_generate_messages_cpp
   ${PROJECT_NAME}_gencfg
 )
 add_dependencies(mono_qr_pattern
   ${catkin_EXPORTED_TARGETS}
-  velo2cam_calibration_generate_messages_cpp
+  velo2cam_stereoHough_generate_messages_cpp
   ${PROJECT_NAME}_gencfg
 )
 add_dependencies(
-  velo2cam_calibration
+  velo2cam_stereoHough
   ${catkin_EXPORTED_TARGETS}
-  velo2cam_calibration_generate_messages_cpp
+  velo2cam_stereoHough_generate_messages_cpp
   ${PROJECT_NAME}_gencfg
 )
 add_dependencies(v2c_plane_segmentation ${PROJECT_NAME}_gencfg)
@@ -114,7 +114,7 @@ target_link_libraries(mono_qr_pattern
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )
-target_link_libraries(velo2cam_calibration
+target_link_libraries(velo2cam_stereoHough
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
   ${TinyXML_LIBRARIES}
