@@ -148,14 +148,28 @@ void warmup_callback(const std_msgs::Empty::ConstPtr &msg) {
     }
 }
 
+
+void line_equation(int x1, int y1, int x2, int y2){
+    double slope = (y2 - y1) / (x2 - x1);
+    double intercept = y1 - slope * x1;
+    return {slope, intercept}
+}
+
+void intersection_point(double slope1, double intercept1, double slope2, double intercept2){
+    double x = (intercept2 - intercept1) / (slope1 - slope2);
+    double y = slope1 * x + intercept1
+    return {x, y}
+}
+
+
 int main(int argc, char **argv) {
     ros::init(argc, argv, "stereo_pattern");
     ros::NodeHandle nh;        // GLOBAL
     ros::NodeHandle nh_("~");  // LOCAL
 
     //QUI C'è UN PROBLEMA 
-    ros::Subscriber left_circles = nh_.subscribe<opencv_apps::CircleArrayStamped>("left_circles", 10, callback);
-    ros::Subscriber right_circles = nh_.subscribe<opencv_apps::CircleArrayStamped>("right_circles", 10, callback);
+    ros::Subscriber left_circles = nh_.subscribe<opencv_apps::CircleArrayStamped>("circle_detection_left/left_circles", 10, callback);
+    ros::Subscriber right_circles = nh_.subscribe<opencv_apps::CircleArrayStamped>("circle_detection_right/right_circles", 10, callback);
 
     if (DEBUG) {
         cumulative_pub = nh_.advertise<PointCloud2>("cumulative_cloud", 1);
@@ -205,3 +219,65 @@ int main(int argc, char **argv) {
     ros::spin();
     return 0;
 }
+
+
+
+
+// def centersFilter(sorted_centers, min_radius, max_radius):
+//     #check cernter euclidean min
+//     #1. find center of square
+//     slope_diag1, intercept_diag1 = line_equation(sorted_centers[0][0], sorted_centers[0][1], sorted_centers[3][0], sorted_centers[3][1])
+//     slope_diag2, intercept_diag2 = line_equation(sorted_centers[1][0], sorted_centers[1][1], sorted_centers[2][0], sorted_centers[2][1])
+
+//     # Trova il punto di intersezione delle diagonali
+//     intersection_x, intersection_y = intersection_point(slope_diag1, intercept_diag1, slope_diag2, intercept_diag2)
+
+//     radius = sorted([euclidean_distance(intersection_x, intersection_y, c[0], c[1]) for c in sorted_centers])[3]
+
+//     center = np.round((intersection_x, intersection_y)).astype("int")
+//     radius = np.round(radius).astype("int")
+
+//     if center[0] > 6000 or center[1] > 6000 or center[0] < 0 or center[1] < 0:
+//         return False, (-1, -1), -1
+
+//     if radius > max_radius or radius < min_radius:
+//         return False, center, radius
+//     else:
+//         return True, center, radius
+
+// def sortCenters(centers):
+//     if len(centers) > 4:
+//         return
+//     return sorted(centers, key = lambda x: (x[1], x[0]))
+
+// def depth(circles_right, circles_left):
+//     if len(circles_right) != 4 or len(circles_left) != 4:
+//         return False, [-1, -1, -1, -1], circles_right, circles_left, (0, 0), 0
+    
+//     s_circles_right = sortCenters(circles_right)
+//     s_circles_left = sortCenters(circles_left)
+
+//     centers_right = [(x,y) for (x, y, r) in s_circles_right]
+//     centers_left = [(x,y) for (x, y, r) in s_circles_left]
+
+//     isLeftCentrersValid, center_l, radius_l = centersFilter(centers_left, 100, 150)
+//     if not isLeftCentrersValid:
+//         return False, [-1, -1, -1, -1], s_circles_right, s_circles_left, (0, 0), 0
+
+//     isRightCentersValid, center_r, center_r = centersFilter(centers_right, 100, 150)
+//     if not isRightCentersValid:
+//         return False, [-1, -1, -1, -1], s_circles_right, s_circles_left, (0, 0), 0
+
+//     x_l = np.array([p[0] for p in s_circles_right])
+//     x_r = np.array([p[0] for p in s_circles_left])
+
+//     disparity = x_r - x_l
+
+//     #Manca il calcolo delle coordinate x e y
+
+//     return True, (fx * baseline) / disparity, s_circles_right, s_circles_left, center_l, radius_l
+
+// def euclidean_distance(x1, y1, x2, y2):
+//     # Calcola la distanza euclidea tra due punti nel piano
+//     distance = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+//     return distance
