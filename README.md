@@ -1,3 +1,6 @@
+# velo2cam_stereoHough
+This fork uses a different approach in the calculation of the centered points of the stereo camera, using the hough trasformation to find the circle in the camera.
+
 # velo2cam_calibration [![Build Status](https://build.ros.org/view/Ndev/job/Ndev__velo2cam_calibration__ubuntu_focal_amd64/badge/icon)](https://build.ros.org/view/Ndev/job/Ndev__velo2cam_calibration__ubuntu_focal_amd64/)
 
 The *velo2cam_calibration* software implements a state-of-the-art automatic calibration algorithm for pair of sensors composed of LiDAR and camera devices in any possible combination, as described in this paper: 
