@@ -37,11 +37,14 @@
 #include <pcl_msgs/PointIndices.h>
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/CameraInfo.h>
 #include <std_msgs/Empty.h>
 #include <velo2cam_stereoHough/StereoConfig.h>
 #include <velo2cam_stereoHough/ClusterCentroids.h>
 #include <velo2cam_utils.h>
 #include <opencv_apps/CircleArrayStamped.h>
+#include <message_filters/time_synchronizer.h>
+#include <math.h>
 
 using namespace std;
 using namespace sensor_msgs;
@@ -59,36 +62,159 @@ bool skip_warmup_;
 bool save_to_file_;
 std::ofstream savefile;
 
+//Questi vanno presi dai parametri
+double accep_radius;
+double offset_accept_radius; 
+double baseline = 0.12;
+
+boost::array<double, 9> CamIntrMat;
+
+struct line{
+    double slope;
+    double intercept;
+};
+
+int fx;
+int fy;
+int cx;
+int cy;
+
 pcl::PointCloud<pcl::PointXYZ>::Ptr cumulative_cloud;
 ros::Publisher final_pub;
 ros::Publisher cumulative_pub;
 
 std_msgs::Header header_;
 
-//DEVE PRENDERE DUE CIRCLESTAMPED
-void callback(opencv_apps::CircleArrayStamped circles_stp) {
+void sortCenters(std::vector<opencv_apps::Point2D>& centers) {
+    std::sort(centers.begin(), centers.end(), [](const opencv_apps::Point2D& a, const opencv_apps::Point2D& b) {
+        // Primo ordina per il primo elemento, poi per il secondo
+        if (a.x == b.x) {
+            return a.y < b.y;
+        }
+        return a.x < b.x;
+    });
+}
+
+line line_equation(opencv_apps::Point2D p1, opencv_apps::Point2D p2){
+    line l;
+    l.slope = (p2.y - p1.y) / (p2.x - p1.x);
+    l.intercept = p1.y - l.slope * p1.x;
+    return l;
+}
+
+opencv_apps::Point2D intersection_point(line l1, line l2){
+    opencv_apps::Point2D point;
+    point.x = (l2.intercept - l1.intercept) / (l1.slope - l2.slope);
+    point.y = l1.slope * point.x + l1.intercept;
+    return point;
+}
+
+double euclidean_distance(opencv_apps::Point2D p1, opencv_apps::Point2D p2){
+    return sqrt(pow((p2.x - p1.x),2) + pow((p2.y - p1.y),2));
+}
+
+bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accep_radius, double offset){
+    //Controllo di plausibilità
+    line line1 = line_equation(centers[0], centers[3]);
+    line line2 = line_equation(centers[1], centers[2]);
+
+    opencv_apps::Point2D square_center = intersection_point(line1, line2);
+    double radius[4];
+
+    for(int i = 0; i < 4; i++){
+        radius[i] = euclidean_distance(centers[i], square_center);
+    }
+
+    double max_radius = -1;
+    for (int i = 0; i < 4; ++i) {
+        if (radius[i] > max_radius) {
+            max_radius = radius[i];
+        }
+    }
+
+    //Magari aggiungere anche un controllo sulla posizione del centro?
+    if(max_radius > accep_radius + offset || max_radius < accep_radius - offset){
+        if (DEBUG) ROS_INFO("[Stereo] Centers does not pass the filter, radius: %d", max_radius);
+        return false;
+    }else{
+        return true;
+    }
+}
+
+std::vector<pcl::PointXYZ> calculate_TD_Centers(std::vector<opencv_apps::Point2D> left_centers, std::vector<opencv_apps::Point2D> right_centers){
+    std::vector<pcl::PointXYZ> TD_centers;
+
+    for(int i = 0; i < 4; i++){
+        double z = ((fx * baseline)/(left_centers[i].x - right_centers[i].x));
+        //Calcola la coordinata X utilizzando la triangolazione stereo
+        double x = z * ((left_centers[i].x - cx) + (right_centers[i].x - cx)) / (2 * fx);
+        //Calcola la coordinata Y utilizzando la triangolazione stereo
+        //ATTENZIONE: da capire se qui giusto fy
+        double y = z * ((left_centers[i].y - cy) + (right_centers[i].y - cy)) / (2 * fy);
+
+        pcl::PointXYZ p(x, y, z);
+        TD_centers.push_back(p);
+    }
+
+    return TD_centers;
+}
+
+void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &left_circles_stp, const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &right_circles_stp) {
     if (DEBUG) ROS_INFO("[Stereo] Start processing circles ....");
 
-    images_proc_++;   //Numero di immagini utilizzate?
-    header_ = circles_stp.header;
+    images_proc_++;   //Numero di immagini utilizzate
+    header_ = left_circles_stp->header;
 
     //Prendere i cerchi e filtrarli e trovare i centri nello spazio 3D.
-    //Se tutto va bene aumento images_used_++ e
-    //Aggiungo alla comulative cloud
-    //Forse prima c'è da fare una rotazione
-    //cumulative_cloud->push_back(center_rotated_back);
+    std::vector<opencv_apps::Circle> left_circles = left_circles_stp->circles;
+    std::vector<opencv_apps::Circle> right_circles = right_circles_stp->circles;
+
+    //Controlla che siano almeno 4 altrimenti esco
+    if(left_circles.size() < 4 || right_circles.size() < 4){
+        //Avviso di errore
+        if (DEBUG) ROS_INFO("[Stereo] Not enoght circle, left: %d, right: %d", left_circles.size(), right_circles.size());
+        return;
+    }
+
+    std::vector<opencv_apps::Point2D> left_centers;
+    std::vector<opencv_apps::Point2D> right_centers;
+
+    for(int i = 0; i < 4; i++){
+        left_centers.push_back(left_circles[i].center);
+        right_centers.push_back(right_circles[i].center);
+    }
+
+    sortCenters(left_centers);
+    sortCenters(right_centers);
+
+    if(filterCenters(left_centers, accep_radius, offset_accept_radius)){
+       if(filterCenters(right_centers, accep_radius, offset_accept_radius)){
+            //I centri sono buoni posso calcolare i punti
+            std::vector<pcl::PointXYZ> circle_centers_TD = calculate_TD_Centers(left_centers, right_centers); 
+
+            for(int i = 0; i < 4; i++){
+                if (DEBUG) ROS_INFO("[Stereo] OK, adding centers to cumulative cloud");
+                // Forse andrebbe ruotato i punti prima?
+                cumulative_cloud->push_back(circle_centers_TD[i]);
+            }        
+       }else{
+            return;
+       }
+    }else{
+        return;
+    }
 
     // Publishing "cumulative_cloud" (centers found from the beginning)
     if (DEBUG) {
         PointCloud2 cumulative_ros;
         pcl::toROSMsg(*cumulative_cloud, cumulative_ros);
-        cumulative_ros.header = circles_stp.header;
+        cumulative_ros.header = left_circles_stp->header;
         cumulative_pub.publish(cumulative_ros);
         ROS_INFO("[Stereo] %d/%d frames: %ld pts in cloud", images_used_, images_proc_, cumulative_cloud->points.size());
     }
     pcl::PointCloud<pcl::PointXYZ>::Ptr final_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    // Compute circles centers
+    //Compute circles centers
     if (!WARMUP_DONE) {  // Compute clusters from detections in the latest frame
         getCenterClusters(cumulative_cloud, final_cloud, cluster_tolerance_, 1, 1);
     }else{  // Use cumulative information from previous frames
@@ -98,7 +224,7 @@ void callback(opencv_apps::CircleArrayStamped circles_stp) {
         }
     }
 
-    // Exit 4: clustering failed
+    //clustering failed
     if (final_cloud->points.size() == TARGET_NUM_CIRCLES) {
         if (save_to_file_) {
             std::vector<pcl::PointXYZ> sorted_centers;
@@ -109,12 +235,13 @@ void callback(opencv_apps::CircleArrayStamped circles_stp) {
             savefile << cumulative_cloud->width;
         }
 
+        images_used_++;
         sensor_msgs::PointCloud2 final_ros;
         pcl::toROSMsg(*final_cloud, final_ros);
-        final_ros.header = circles_stp.header;
+        final_ros.header = left_circles_stp->header;
 
         velo2cam_stereoHough::ClusterCentroids to_send;
-        to_send.header = circles_stp.header;
+        to_send.header = left_circles_stp->header;
         to_send.total_iterations = images_proc_;
         to_send.cluster_iterations = images_used_;
         to_send.cloud = final_ros;
@@ -148,28 +275,29 @@ void warmup_callback(const std_msgs::Empty::ConstPtr &msg) {
     }
 }
 
-
-void line_equation(int x1, int y1, int x2, int y2){
-    double slope = (y2 - y1) / (x2 - x1);
-    double intercept = y1 - slope * x1;
-    return {slope, intercept}
+void camInfoCallback(const sensor_msgs::CameraInfoConstPtr &caminfo){
+    //Da cambiare metodo di assegnamento
+    CamIntrMat = caminfo->K;
+    fx = CamIntrMat[0];
+    fy = CamIntrMat[4];
+    cx = CamIntrMat[2];
+    cy = CamIntrMat[5];
 }
-
-void intersection_point(double slope1, double intercept1, double slope2, double intercept2){
-    double x = (intercept2 - intercept1) / (slope1 - slope2);
-    double y = slope1 * x + intercept1
-    return {x, y}
-}
-
 
 int main(int argc, char **argv) {
     ros::init(argc, argv, "stereo_pattern");
     ros::NodeHandle nh;        // GLOBAL
     ros::NodeHandle nh_("~");  // LOCAL
 
-    //QUI C'è UN PROBLEMA 
-    ros::Subscriber left_circles = nh_.subscribe<opencv_apps::CircleArrayStamped>("circle_detection_left/left_circles", 10, callback);
-    ros::Subscriber right_circles = nh_.subscribe<opencv_apps::CircleArrayStamped>("circle_detection_right/right_circles", 10, callback);
+    //Controllare perchè potrebbe chiamarsi diversamente
+    ros::Subscriber cam_info = nh.subscribe<sensor_msgs::CameraInfo>("zed2i/zed_node/left/camera_info", 1, camInfoCallback);
+
+    message_filters::Subscriber<opencv_apps::CircleArrayStamped> left_circles(nh_, "circle_detection_left/left_circles", 1);
+    message_filters::Subscriber<opencv_apps::CircleArrayStamped> right_circles(nh_, "circle_detection_right/right_circles", 1);
+
+    typedef message_filters::sync_policies::ExactTime<opencv_apps::CircleArrayStamped, opencv_apps::CircleArrayStamped> ExSync;
+    message_filters::Synchronizer<ExSync> sync_(ExSync(10), left_circles, right_circles);
+    sync_.registerCallback(boost::bind(&callback, _1, _2));
 
     if (DEBUG) {
         cumulative_pub = nh_.advertise<PointCloud2>("cumulative_cloud", 1);
@@ -219,65 +347,3 @@ int main(int argc, char **argv) {
     ros::spin();
     return 0;
 }
-
-
-
-
-// def centersFilter(sorted_centers, min_radius, max_radius):
-//     #check cernter euclidean min
-//     #1. find center of square
-//     slope_diag1, intercept_diag1 = line_equation(sorted_centers[0][0], sorted_centers[0][1], sorted_centers[3][0], sorted_centers[3][1])
-//     slope_diag2, intercept_diag2 = line_equation(sorted_centers[1][0], sorted_centers[1][1], sorted_centers[2][0], sorted_centers[2][1])
-
-//     # Trova il punto di intersezione delle diagonali
-//     intersection_x, intersection_y = intersection_point(slope_diag1, intercept_diag1, slope_diag2, intercept_diag2)
-
-//     radius = sorted([euclidean_distance(intersection_x, intersection_y, c[0], c[1]) for c in sorted_centers])[3]
-
-//     center = np.round((intersection_x, intersection_y)).astype("int")
-//     radius = np.round(radius).astype("int")
-
-//     if center[0] > 6000 or center[1] > 6000 or center[0] < 0 or center[1] < 0:
-//         return False, (-1, -1), -1
-
-//     if radius > max_radius or radius < min_radius:
-//         return False, center, radius
-//     else:
-//         return True, center, radius
-
-// def sortCenters(centers):
-//     if len(centers) > 4:
-//         return
-//     return sorted(centers, key = lambda x: (x[1], x[0]))
-
-// def depth(circles_right, circles_left):
-//     if len(circles_right) != 4 or len(circles_left) != 4:
-//         return False, [-1, -1, -1, -1], circles_right, circles_left, (0, 0), 0
-    
-//     s_circles_right = sortCenters(circles_right)
-//     s_circles_left = sortCenters(circles_left)
-
-//     centers_right = [(x,y) for (x, y, r) in s_circles_right]
-//     centers_left = [(x,y) for (x, y, r) in s_circles_left]
-
-//     isLeftCentrersValid, center_l, radius_l = centersFilter(centers_left, 100, 150)
-//     if not isLeftCentrersValid:
-//         return False, [-1, -1, -1, -1], s_circles_right, s_circles_left, (0, 0), 0
-
-//     isRightCentersValid, center_r, center_r = centersFilter(centers_right, 100, 150)
-//     if not isRightCentersValid:
-//         return False, [-1, -1, -1, -1], s_circles_right, s_circles_left, (0, 0), 0
-
-//     x_l = np.array([p[0] for p in s_circles_right])
-//     x_r = np.array([p[0] for p in s_circles_left])
-
-//     disparity = x_r - x_l
-
-//     #Manca il calcolo delle coordinate x e y
-
-//     return True, (fx * baseline) / disparity, s_circles_right, s_circles_left, center_l, radius_l
-
-// def euclidean_distance(x1, y1, x2, y2):
-//     # Calcola la distanza euclidea tra due punti nel piano
-//     distance = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-//     return distance
