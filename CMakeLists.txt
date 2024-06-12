@@ -21,7 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(TinyXML REQUIRED)
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 3.4 REQUIRED)
 
 generate_dynamic_reconfigure_options(
   cfg/Lidar.cfg
@@ -75,6 +75,7 @@ add_executable(mono_qr_pattern src/mono_qr_pattern.cpp)
 add_executable(velo2cam_stereoHough src/velo2cam_stereoHough.cpp)
 add_executable(v2c_plane_segmentation src/plane.cpp)
 add_executable(v2c_disp_masker src/disp_masker.cpp)
+add_executable(my_depth src/my_depth.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -93,13 +94,18 @@ add_dependencies(mono_qr_pattern
   velo2cam_stereoHough_generate_messages_cpp
   ${PROJECT_NAME}_gencfg
 )
-add_dependencies(
-  velo2cam_stereoHough
+add_dependencies(velo2cam_stereoHough
   ${catkin_EXPORTED_TARGETS}
   velo2cam_stereoHough_generate_messages_cpp
   ${PROJECT_NAME}_gencfg
 )
 add_dependencies(v2c_plane_segmentation ${PROJECT_NAME}_gencfg)
+
+add_dependencies(my_depth
+  ${catkin_EXPORTED_TARGETS}
+  velo2cam_stereoHough_generate_messages_cpp
+  ${PROJECT_NAME}_gencfg
+)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(stereo_pattern
@@ -123,6 +129,10 @@ target_link_libraries(v2c_plane_segmentation
   ${catkin_LIBRARIES}
 )
 target_link_libraries(v2c_disp_masker
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+)
+target_link_libraries(my_depth
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )

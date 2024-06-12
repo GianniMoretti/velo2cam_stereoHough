@@ -28,6 +28,7 @@
 #include <dynamic_reconfigure/server.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/exact_time.h>
+#include <message_filters/sync_policies/approximate_time.h>
 #include <pcl/common/transforms.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/sample_consensus/sac_model_plane.h>
@@ -57,14 +58,14 @@ double target_radius_tolerance_;
 double cluster_tolerance_;
 int min_centers_found_;
 double min_cluster_factor_;
-bool WARMUP_DONE = false;
+bool WARMUP_DONE = true;
 bool skip_warmup_;
 bool save_to_file_;
 std::ofstream savefile;
 
 //Questi vanno presi dai parametri
-double accep_radius;
-double offset_accept_radius; 
+double accep_radius = 40;
+double offset_accept_radius = 10; 
 double baseline = 0.12;
 
 boost::array<double, 9> CamIntrMat;
@@ -79,9 +80,12 @@ int fy;
 int cx;
 int cy;
 
-pcl::PointCloud<pcl::PointXYZ>::Ptr cumulative_cloud;
+pcl::PointCloud<pcl::PointXYZ>::Ptr cumulative_clouds[4];
+pcl::PointCloud<pcl::PointXYZ>::Ptr cumulative_cloud_centroid;
+
 ros::Publisher final_pub;
 ros::Publisher cumulative_pub;
+ros::Publisher final_debug_pub;
 
 std_msgs::Header header_;
 
@@ -118,11 +122,17 @@ bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accep_radiu
     line line1 = line_equation(centers[0], centers[3]);
     line line2 = line_equation(centers[1], centers[2]);
 
+    if (DEBUG) ROS_INFO("line1: %f, %f", line1.slope, line1.intercept);
+    if (DEBUG) ROS_INFO("line2: %f, %f", line2.slope, line2.intercept);
+
     opencv_apps::Point2D square_center = intersection_point(line1, line2);
+    ROS_INFO("Squere center: (%f, %f)", square_center.x, square_center.y);
     double radius[4];
 
+    if (DEBUG) ROS_INFO("Calculated radius: ");
     for(int i = 0; i < 4; i++){
         radius[i] = euclidean_distance(centers[i], square_center);
+        if (DEBUG) ROS_INFO("radius: %f", radius[i]);
     }
 
     double max_radius = -1;
@@ -134,7 +144,7 @@ bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accep_radiu
 
     //Magari aggiungere anche un controllo sulla posizione del centro?
     if(max_radius > accep_radius + offset || max_radius < accep_radius - offset){
-        if (DEBUG) ROS_INFO("[Stereo] Centers does not pass the filter, radius: %d", max_radius);
+        if (DEBUG) ROS_INFO("[Stereo] Centers does not pass the filter, radius: %f", max_radius);
         return false;
     }else{
         return true;
@@ -143,14 +153,13 @@ bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accep_radiu
 
 std::vector<pcl::PointXYZ> calculate_TD_Centers(std::vector<opencv_apps::Point2D> left_centers, std::vector<opencv_apps::Point2D> right_centers){
     std::vector<pcl::PointXYZ> TD_centers;
-
     for(int i = 0; i < 4; i++){
         double z = ((fx * baseline)/(left_centers[i].x - right_centers[i].x));
         //Calcola la coordinata X utilizzando la triangolazione stereo
         double x = z * ((left_centers[i].x - cx) + (right_centers[i].x - cx)) / (2 * fx);
         //Calcola la coordinata Y utilizzando la triangolazione stereo
         //ATTENZIONE: da capire se qui giusto fy
-        double y = z * ((left_centers[i].y - cy) + (right_centers[i].y - cy)) / (2 * fy);
+        double y = z * ((left_centers[i].y - cy) + (right_centers[i].y - cy)) / (2 * fx);
 
         pcl::PointXYZ p(x, y, z);
         TD_centers.push_back(p);
@@ -164,6 +173,10 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
 
     images_proc_++;   //Numero di immagini utilizzate
     header_ = left_circles_stp->header;
+
+    for(int i = 0; i < 4; i++){
+        ROS_INFO("Center %d: (%f, %f)", i,  left_circles_stp->circles[i].center.x, left_circles_stp->circles[i].center.y);
+    }
 
     //Prendere i cerchi e filtrarli e trovare i centri nello spazio 3D.
     std::vector<opencv_apps::Circle> left_circles = left_circles_stp->circles;
@@ -187,42 +200,50 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
     sortCenters(left_centers);
     sortCenters(right_centers);
 
+    pcl::PointCloud<pcl::PointXYZ>::Ptr final_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
     if(filterCenters(left_centers, accep_radius, offset_accept_radius)){
-       if(filterCenters(right_centers, accep_radius, offset_accept_radius)){
+        if(filterCenters(right_centers, accep_radius, offset_accept_radius)){
             //I centri sono buoni posso calcolare i punti
             std::vector<pcl::PointXYZ> circle_centers_TD = calculate_TD_Centers(left_centers, right_centers); 
 
             for(int i = 0; i < 4; i++){
                 if (DEBUG) ROS_INFO("[Stereo] OK, adding centers to cumulative cloud");
                 // Forse andrebbe ruotato i punti prima?
-                cumulative_cloud->push_back(circle_centers_TD[i]);
+                cumulative_clouds[i]->push_back(circle_centers_TD[i]);
+                cumulative_cloud_centroid->push_back(circle_centers_TD[i]);
+
+                pcl::PointXYZ centroid;
+                pcl::computeCentroid(*cumulative_clouds[i], centroid);
+                final_cloud->push_back(centroid);
             }        
-       }else{
+        }else{
             return;
-       }
+        }
     }else{
         return;
     }
 
+    images_used_++;
+
     // Publishing "cumulative_cloud" (centers found from the beginning)
     if (DEBUG) {
         PointCloud2 cumulative_ros;
-        pcl::toROSMsg(*cumulative_cloud, cumulative_ros);
+        pcl::toROSMsg(*cumulative_cloud_centroid, cumulative_ros);
         cumulative_ros.header = left_circles_stp->header;
         cumulative_pub.publish(cumulative_ros);
-        ROS_INFO("[Stereo] %d/%d frames: %ld pts in cloud", images_used_, images_proc_, cumulative_cloud->points.size());
+        ROS_INFO("[Stereo] %d/%d frames: %ld pts in cloud", images_used_, images_proc_, cumulative_cloud_centroid->points.size());
     }
-    pcl::PointCloud<pcl::PointXYZ>::Ptr final_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    //Compute circles centers
-    if (!WARMUP_DONE) {  // Compute clusters from detections in the latest frame
-        getCenterClusters(cumulative_cloud, final_cloud, cluster_tolerance_, 1, 1);
-    }else{  // Use cumulative information from previous frames
-        getCenterClusters(cumulative_cloud, final_cloud, cluster_tolerance_, min_cluster_factor_ * images_used_, images_used_);
-        if (final_cloud->points.size() > TARGET_NUM_CIRCLES) {
-            getCenterClusters(cumulative_cloud, final_cloud, cluster_tolerance_, 3.0 * images_used_ / 4.0, images_used_);
-        }
-    }
+    // //Compute circles centers
+    // if (!WARMUP_DONE) {  // Compute clusters from detections in the latest frame
+    //     getCenterClusters(cumulative_cloud_centroid, final_cloud, cluster_tolerance_, 1, 1);
+    // }else{  // Use cumulative information from previous frames
+    //     getCenterClusters(cumulative_cloud_centroid, final_cloud, cluster_tolerance_, 0.8 * images_used_, images_used_ * 1.2);
+    //     if (final_cloud->points.size() > TARGET_NUM_CIRCLES) {
+    //         getCenterClusters(cumulative_cloud_centroid, final_cloud, cluster_tolerance_, 3.0 * images_used_ / 4.0, images_used_);
+    //     }
+    // }
 
     //clustering failed
     if (final_cloud->points.size() == TARGET_NUM_CIRCLES) {
@@ -232,13 +253,21 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
             for (std::vector<pcl::PointXYZ>::iterator it = sorted_centers.begin(); it < sorted_centers.end(); ++it) {
                 savefile << it->x << ", " << it->y << ", " << it->z << ", ";
             }
-            savefile << cumulative_cloud->width;
+            savefile << cumulative_cloud_centroid->width;
         }
 
-        images_used_++;
         sensor_msgs::PointCloud2 final_ros;
         pcl::toROSMsg(*final_cloud, final_ros);
         final_ros.header = left_circles_stp->header;
+
+        //Pubblichiamo anche la final
+        if (DEBUG) {
+            PointCloud2 final_debug_ros;
+            pcl::toROSMsg(*final_cloud, final_debug_ros);
+            final_debug_ros.header = left_circles_stp->header;
+            final_debug_pub.publish(final_debug_ros);
+            ROS_INFO("[Stereo] Pub final cloud...");
+        }
 
         velo2cam_stereoHough::ClusterCentroids to_send;
         to_send.header = left_circles_stp->header;
@@ -255,7 +284,10 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
 
     // Clear cumulative cloud during warm-up phase
     if (!WARMUP_DONE) {
-        cumulative_cloud->clear();
+        cumulative_cloud_centroid->clear();
+        for(int i = 0; i < 4; i++){
+            cumulative_clouds[i]->clear();
+        }  
         images_proc_ = 0;
         images_used_ = 0;
     }
@@ -292,19 +324,23 @@ int main(int argc, char **argv) {
     //Controllare perchè potrebbe chiamarsi diversamente
     ros::Subscriber cam_info = nh.subscribe<sensor_msgs::CameraInfo>("zed2i/zed_node/left/camera_info", 1, camInfoCallback);
 
-    message_filters::Subscriber<opencv_apps::CircleArrayStamped> left_circles(nh_, "circle_detection_left/left_circles", 1);
-    message_filters::Subscriber<opencv_apps::CircleArrayStamped> right_circles(nh_, "circle_detection_right/right_circles", 1);
+    message_filters::Subscriber<opencv_apps::CircleArrayStamped> left_circles(nh, "circle_detection_left/left_circles", 1);
+    message_filters::Subscriber<opencv_apps::CircleArrayStamped> right_circles(nh, "circle_detection_right/right_circles", 1);
 
-    typedef message_filters::sync_policies::ExactTime<opencv_apps::CircleArrayStamped, opencv_apps::CircleArrayStamped> ExSync;
-    message_filters::Synchronizer<ExSync> sync_(ExSync(10), left_circles, right_circles);
+    typedef message_filters::sync_policies::ApproximateTime<opencv_apps::CircleArrayStamped, opencv_apps::CircleArrayStamped> AppSync;
+    message_filters::Synchronizer<AppSync> sync_(AppSync(100), left_circles, right_circles);
     sync_.registerCallback(boost::bind(&callback, _1, _2));
 
     if (DEBUG) {
         cumulative_pub = nh_.advertise<PointCloud2>("cumulative_cloud", 1);
+        final_debug_pub = nh_.advertise<PointCloud2>("final_debug_pub", 1);
     }
 
     final_pub = nh_.advertise<velo2cam_stereoHough::ClusterCentroids>("centers_cloud", 1);
-    cumulative_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+    cumulative_cloud_centroid = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+    for(int i= 0; i < 4; i++){
+        cumulative_clouds[i] = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+    }
 
     string csv_name;
 
@@ -312,7 +348,7 @@ int main(int argc, char **argv) {
     nh.param("delta_height_circles", delta_height_circles_, 0.4);
     nh_.param("target_radius_tolerance", target_radius_tolerance_, 0.05); // Era 0.01
     nh_.param("min_centers_found", min_centers_found_, TARGET_NUM_CIRCLES);
-    nh_.param("cluster_tolerance", cluster_tolerance_, 0.05);
+    nh_.param("cluster_tolerance", cluster_tolerance_, 0.1); // Era 0.05
     nh_.param("min_cluster_factor", min_cluster_factor_, 0.5);
     nh_.param("skip_warmup", skip_warmup_, false);
     nh_.param("save_to_file", save_to_file_, false);
@@ -343,7 +379,7 @@ int main(int argc, char **argv) {
                     "cent3_z, cent4_x, cent4_y, cent4_z, it" << endl;
         }
     }
-
+    ROS_INFO("[Stereo]Starting callback...");
     ros::spin();
     return 0;
 }

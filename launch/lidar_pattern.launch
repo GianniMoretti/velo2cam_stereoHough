@@ -42,7 +42,7 @@
     </rosparam>
   </node>
 
-  <node pkg="velo2cam_calibration" type="lidar_pattern" name="lidar_pattern_$(arg sensor_id)" output="screen">
+  <node pkg="velo2cam_stereoHough" type="lidar_pattern" name="lidar_pattern_$(arg sensor_id)" output="screen">
     <remap from="~cloud1" to="/lidar_pattern_$(arg sensor_id)/zyx_filtered"/>
     <rosparam>
       passthrough_radius_min: 1.0

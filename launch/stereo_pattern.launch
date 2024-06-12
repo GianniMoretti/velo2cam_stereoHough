@@ -2,57 +2,54 @@
 
   <arg name="stdout" default="screen" />
   <arg name="camera_name" default="/zed2i/zed_node/" />
-  <arg name="image_topic" default="image_rect_color" />
+  <arg name="image_topic" default="image_raw_color" />
   <arg name="frame_name" default="zed2i_left_camera_frame"/>
   <arg name="sensor_id" default="0" />
 
   <!-- Circle detection left -->
   <node name="circle_detection_left" pkg="opencv_apps" type="hough_circles" output="$(arg stdout)" >
-    <remap from="image" to="$(arg camera_name)/left/$(arg image_topic)" />
+    <remap from="image" to="$(arg camera_name)/left_raw/$(arg image_topic)" />
     <remap from="~circles" to="circle_detection_left/left_circles" />
     <rosparam>
       use_camera_info: True
-      debug_view: false
-      canny_threshold: 200
-      accumulator_threshold: 50
+      debug_view: True
+      canny_threshold: 255
+      accumulator_threshold: 56
       gaussian_blur_size: 9
-      gaussian_sigma_x: 2
-      gaussian_sigma_y: 2
-      dp: 2
-      min_circle_radius: 0
-      max_circle_radius: 25
-      queue_size: 10
+      gaussian_sigma_x: 1
+      gaussian_sigma_y: 1
+      dp: 3
+      min_circle_radius: 16
+      max_circle_radius: 23
+      queue_size: 4
     </rosparam>
   </node>
 
   <!-- Circle detection right -->
   <node name="circle_detection_right" pkg="opencv_apps" type="hough_circles" output="$(arg stdout)" >
-    <remap from="image" to="$(arg camera_name)/right/$(arg image_topic)" />
+    <remap from="image" to="$(arg camera_name)/right_raw/$(arg image_topic)" />
     <remap from="~circles" to="circle_detection_right/right_circles" />
     <rosparam>
       use_camera_info: True
-      debug_view: false
-      canny_threshold: 200
-      accumulator_threshold: 50
+      debug_view: True
+      canny_threshold: 255
+      accumulator_threshold: 51
       gaussian_blur_size: 9
-      gaussian_sigma_x: 2
-      gaussian_sigma_y: 2
-      dp: 2
-      min_circle_radius: 0
-      max_circle_radius: 25
-      queue_size: 10
+      gaussian_sigma_x: 1
+      gaussian_sigma_y: 1
+      dp: 3
+      min_circle_radius: 18
+      max_circle_radius: 22
+      queue_size: 4
     </rosparam>
   </node>
 
   <!-- PCL generic nodelet manager (SERVE?) -->
-  <node pkg="nodelet" type="nodelet" name="stereo_pcl_manager_$(arg sensor_id)" args="manager" output="$(arg stdout)"/>
+  <!-- <node pkg="nodelet" type="nodelet" name="stereo_pcl_manager_$(arg sensor_id)" args="manager" output="$(arg stdout)"/> -->
 
   <!-- Our node -->
-  <!-- <node pkg="velo2cam_stereoHough" type="stereo_pattern" name="stereo_pattern_$(arg sensor_id)" output="screen">
-    <remap from="~cloud2" to="$(arg camera_name)/edge_z_filtered_cloud"/>
-    <remap from="~cam_plane_coeffs" to="/planar_segmentation/model"/>
-  </node> -->
+  <node pkg="velo2cam_stereoHough" type="stereo_pattern" name="stereo_pattern_$(arg sensor_id)" output="screen"></node>
 
   <!-- a cosa serve? -->
-  <!-- <node pkg="tf" type="static_transform_publisher" name="stereo_ros_tf" args="0 0 0 -1.57079632679 0 -1.57079632679 rotated_$(arg frame_name) $(arg frame_name) 100"/> -->
+  <node pkg="tf" type="static_transform_publisher" name="stereo_ros_tf" args="0 0 0 -1.57079632679 0 -1.57079632679 rotated_$(arg frame_name) $(arg frame_name) 100"/>
 </launch>

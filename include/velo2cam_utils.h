@@ -192,11 +192,7 @@ void colourCenters(const std::vector<pcl::PointXYZ> pc,
   }
 }
 
-void getCenterClusters(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in,
-                       pcl::PointCloud<pcl::PointXYZ>::Ptr centers_cloud,
-                       double cluster_tolerance = 0.10,
-                       int min_cluster_size = 15, int max_cluster_size = 200,
-                       bool verbosity = true) {
+void getCenterClusters(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr centers_cloud, double cluster_tolerance = 0.10, int min_cluster_size = 15, int max_cluster_size = 200, bool verbosity = true) {
   pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>);
   tree->setInputCloud(cloud_in);
 
@@ -210,8 +206,7 @@ void getCenterClusters(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in,
   euclidean_cluster.extract(cluster_indices);
 
   if (DEBUG && verbosity)
-    cout << cluster_indices.size() << " clusters found from "
-         << cloud_in->points.size() << " points in cloud" << endl;
+    cout << cluster_indices.size() << " clusters found from " << cloud_in->points.size() << " points in cloud" << endl;
 
   for (std::vector<pcl::PointIndices>::iterator it = cluster_indices.begin();
     it < cluster_indices.end(); it++) {
