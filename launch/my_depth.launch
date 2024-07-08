@@ -7,7 +7,7 @@
   <arg name="sensor_id" default="0" />
 
   <!-- Our node -->
-  <node pkg="velo2cam_stereoHough" type="my_depth" name="my_depth_SIFT" output="screen">
+  <node pkg="velo2cam_stereoHough" type="my_depth" name="my_depth_ORB" output="screen">
     <remap from="image_left" to="$(arg camera_name)/left/$(arg image_topic)" />
     <remap from="image_right" to="$(arg camera_name)/right/$(arg image_topic)" />
   </node>

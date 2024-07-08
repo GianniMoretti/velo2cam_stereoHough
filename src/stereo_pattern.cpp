@@ -63,9 +63,9 @@ bool skip_warmup_;
 bool save_to_file_;
 std::ofstream savefile;
 
-//Questi vanno presi dai parametri
-double accep_radius = 40;
-double offset_accept_radius = 10; 
+//Questi vanno presi dai parametri  Da cambiare questa cosa
+// double accep_radius = 100;
+double delta_filter_accept = 6;
 double baseline = 0.12;
 
 boost::array<double, 9> CamIntrMat;
@@ -117,7 +117,17 @@ double euclidean_distance(opencv_apps::Point2D p1, opencv_apps::Point2D p2){
     return sqrt(pow((p2.x - p1.x),2) + pow((p2.y - p1.y),2));
 }
 
-bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accep_radius, double offset){
+bool areElementsSimilar(const std::vector<float>& vec, float epsilon) {
+    for (size_t i = 1; i < vec.size(); ++i) {
+        if (std::fabs(vec[i] - vec[0]) >= epsilon) {
+            return false; // Se la differenza è maggiore o uguale a epsilon, gli elementi non sono simili
+        }
+    }
+    return true; // Tutti gli elementi sono simili
+}
+
+
+bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accep_radius){
     //Controllo di plausibilità
     line line1 = line_equation(centers[0], centers[3]);
     line line2 = line_equation(centers[1], centers[2]);
@@ -142,13 +152,14 @@ bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accep_radiu
         }
     }
 
-    //Magari aggiungere anche un controllo sulla posizione del centro?
-    if(max_radius > accep_radius + offset || max_radius < accep_radius - offset){
-        if (DEBUG) ROS_INFO("[Stereo] Centers does not pass the filter, radius: %f", max_radius);
-        return false;
-    }else{
-        return true;
+    for (int i = 1; i < 4; ++i) { 
+        if (std::fabs(radius[i] - radius[0]) >= accep_radius) {
+            if (DEBUG) ROS_INFO("[Stereo] Centers does not pass the filter, radius: %f", std::fabs(radius[i] - radius[0]));
+            return false;
+        }
     }
+
+    return true;
 }
 
 std::vector<pcl::PointXYZ> calculate_TD_Centers(std::vector<opencv_apps::Point2D> left_centers, std::vector<opencv_apps::Point2D> right_centers){
@@ -159,24 +170,84 @@ std::vector<pcl::PointXYZ> calculate_TD_Centers(std::vector<opencv_apps::Point2D
         double x = z * ((left_centers[i].x - cx) + (right_centers[i].x - cx)) / (2 * fx);
         //Calcola la coordinata Y utilizzando la triangolazione stereo
         //ATTENZIONE: da capire se qui giusto fy
-        double y = z * ((left_centers[i].y - cy) + (right_centers[i].y - cy)) / (2 * fx);
+        double y = z * ((left_centers[i].y - cy) + (right_centers[i].y - cy)) / (2 * fy);
 
-        pcl::PointXYZ p(x, y, z);
+        pcl::PointXYZ p(x + 0.06, y, z);
         TD_centers.push_back(p);
     }
 
     return TD_centers;
 }
 
+// Funzione per calcolare il percentile
+double percentile(std::vector<double> &vec, double p) {
+    std::sort(vec.begin(), vec.end());
+    size_t n = vec.size();
+    double pos = p * (n + 1);
+    size_t k = static_cast<size_t>(pos);
+    double d = pos - k;
+    if (k == 0) return vec[0];
+    if (k >= n) return vec[n - 1];
+    return vec[k - 1] + d * (vec[k] - vec[k - 1]);
+}
+
+// Funzione per rimuovere outlier utilizzando l'IQR
+pcl::PointCloud<pcl::PointXYZ>::Ptr removeOutliersIQR(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
+    // Assicurati che data sia un array 2D con 3 colonne (x, y, z)
+    //CV_Assert(data.cols == 3 && data.type() == CV_64F);
+    pcl::PointCloud<pcl::PointXYZ> tmp_cloud = *cloud;
+
+    std::vector<double> x_data, y_data, z_data;
+    for (int i = 0; i < cloud->size(); i++) {
+        x_data.push_back(tmp_cloud[i].x);
+        y_data.push_back(tmp_cloud[i].y);
+        z_data.push_back(tmp_cloud[i].z);
+    }
+
+    // Calcola Q1 e Q3 per ogni dimensione
+    double Q1_x = percentile(x_data, 0.25);
+    double Q3_x = percentile(x_data, 0.75);
+    double Q1_y = percentile(y_data, 0.25);
+    double Q3_y = percentile(y_data, 0.75);
+    double Q1_z = percentile(z_data, 0.25);
+    double Q3_z = percentile(z_data, 0.75);
+
+    // Calcola IQR per ogni dimensione
+    double IQR_x = Q3_x - Q1_x;
+    double IQR_y = Q3_y - Q1_y;
+    double IQR_z = Q3_z - Q1_z;
+
+    // Calcola i limiti inferiori e superiori
+    double lower_bound_x = Q1_x - 1.5 * IQR_x;
+    double upper_bound_x = Q3_x + 1.5 * IQR_x;
+    double lower_bound_y = Q1_y - 1.5 * IQR_y;
+    double upper_bound_y = Q3_y + 1.5 * IQR_y;
+    double lower_bound_z = Q1_z - 1.5 * IQR_z;
+    double upper_bound_z = Q3_z + 1.5 * IQR_z;
+
+    // Filtra i dati
+    pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_data(new pcl::PointCloud<pcl::PointXYZ>);
+    for (int i = 0; i < tmp_cloud.size(); i++) {
+        double x = tmp_cloud[i].x;
+        double y = tmp_cloud[i].y;
+        double z = tmp_cloud[i].z;
+        if (x >= lower_bound_x && x <= upper_bound_x &&
+            y >= lower_bound_y && y <= upper_bound_y &&
+            z >= lower_bound_z && z <= upper_bound_z) {
+            filtered_data->push_back(tmp_cloud[i]);
+        }
+    }
+    return filtered_data;
+}
+
 void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &left_circles_stp, const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &right_circles_stp) {
-    if (DEBUG) ROS_INFO("[Stereo] Start processing circles ....");
+    if (DEBUG) {
+        ROS_INFO("----------------------------------------------------------------------------------");
+        ROS_INFO("[Stereo] Start processing circles ....");
+    }
 
     images_proc_++;   //Numero di immagini utilizzate
     header_ = left_circles_stp->header;
-
-    for(int i = 0; i < 4; i++){
-        ROS_INFO("Center %d: (%f, %f)", i,  left_circles_stp->circles[i].center.x, left_circles_stp->circles[i].center.y);
-    }
 
     //Prendere i cerchi e filtrarli e trovare i centri nello spazio 3D.
     std::vector<opencv_apps::Circle> left_circles = left_circles_stp->circles;
@@ -200,23 +271,37 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
     sortCenters(left_centers);
     sortCenters(right_centers);
 
+    ROS_INFO("Left Centers:");
+    for(int i = 0; i < 4; i++){
+        ROS_INFO("Center %d: (%f, %f)", i, left_centers[i].x, left_centers[i].y);
+    }
+
+    ROS_INFO("Right centers:");
+    for(int i = 0; i < 4; i++){
+        ROS_INFO("Center %d: (%f, %f)", i,  right_centers[i].x, right_centers[i].y);
+    }
+
     pcl::PointCloud<pcl::PointXYZ>::Ptr final_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    if(filterCenters(left_centers, accep_radius, offset_accept_radius)){
-        if(filterCenters(right_centers, accep_radius, offset_accept_radius)){
+    if(filterCenters(left_centers, delta_filter_accept)){
+        if(filterCenters(right_centers, delta_filter_accept)){
             //I centri sono buoni posso calcolare i punti
             std::vector<pcl::PointXYZ> circle_centers_TD = calculate_TD_Centers(left_centers, right_centers); 
 
             for(int i = 0; i < 4; i++){
-                if (DEBUG) ROS_INFO("[Stereo] OK, adding centers to cumulative cloud");
+                if (DEBUG) ROS_INFO("[Stereo] OK, adding centers to cumulative cloud x: %f, y: %f, z: %f, fx: %d",circle_centers_TD[i].x,circle_centers_TD[i].y,circle_centers_TD[i].z, fx);
                 // Forse andrebbe ruotato i punti prima?
                 cumulative_clouds[i]->push_back(circle_centers_TD[i]);
                 cumulative_cloud_centroid->push_back(circle_centers_TD[i]);
-
-                pcl::PointXYZ centroid;
-                pcl::computeCentroid(*cumulative_clouds[i], centroid);
-                final_cloud->push_back(centroid);
-            }        
+                //qui devi fare IRQ
+                if(images_used_ > 100){
+                    cumulative_clouds[i] = removeOutliersIQR(cumulative_clouds[i]);
+                    pcl::PointXYZ centroid;
+                    pcl::computeCentroid(*cumulative_clouds[i], centroid);
+                    if (DEBUG) ROS_INFO("[Stereo] New centroid %d position = x: %f, y: %f, z: %f", i, centroid.x, centroid.y, centroid.z);
+                    final_cloud->push_back(centroid);
+                }
+            }   
         }else{
             return;
         }
@@ -267,6 +352,7 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
             final_debug_ros.header = left_circles_stp->header;
             final_debug_pub.publish(final_debug_ros);
             ROS_INFO("[Stereo] Pub final cloud...");
+            ROS_INFO("----------------------------------------------------------------------------------");
         }
 
         velo2cam_stereoHough::ClusterCentroids to_send;

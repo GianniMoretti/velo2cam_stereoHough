@@ -21,7 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(TinyXML REQUIRED)
-find_package(OpenCV 3.4 REQUIRED)
+find_package(OpenCV 4.8 REQUIRED)
 
 generate_dynamic_reconfigure_options(
   cfg/Lidar.cfg
