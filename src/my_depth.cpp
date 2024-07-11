@@ -50,8 +50,7 @@ using namespace sensor_msgs;
 
 float baseline = 0.12f;
 
-boost::array<double, 9> PL;
-boost::array<double, 9> PR;
+boost::array<double, 9> CamIntrMat;
 
 int fx = 1;
 int fy = 1;

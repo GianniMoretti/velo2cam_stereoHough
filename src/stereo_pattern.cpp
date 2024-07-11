@@ -30,12 +30,17 @@
 #include <message_filters/sync_policies/exact_time.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <pcl/common/transforms.h>
-#include <pcl/filters/extract_indices.h>
-#include <pcl/sample_consensus/sac_model_plane.h>
-#include <pcl/segmentation/sac_segmentation.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl_msgs/ModelCoefficients.h>
 #include <pcl_msgs/PointIndices.h>
+#include <pcl/point_types.h>
+#include <pcl/io/pcd_io.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/sample_consensus/method_types.h>
+#include <pcl/sample_consensus/model_types.h>
+#include <pcl/sample_consensus/sac_model_sphere.h>
+#include <pcl/segmentation/sac_segmentation.h>
+#include <pcl/common/centroid.h>
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/CameraInfo.h>
@@ -46,6 +51,8 @@
 #include <opencv_apps/CircleArrayStamped.h>
 #include <message_filters/time_synchronizer.h>
 #include <math.h>
+#include <opencv2/opencv.hpp>
+#include <opencv2/calib3d.hpp>
 
 using namespace std;
 using namespace sensor_msgs;
@@ -64,16 +71,28 @@ bool save_to_file_;
 std::ofstream savefile;
 
 //Questi vanno presi dai parametri  Da cambiare questa cosa
-// double accep_radius = 100;
-double delta_filter_accept = 6;
-double baseline = 0.12;
+double accep_radius = 106.0;
+double delta_filter_accept = 5.0;
+int warmup_cloud = 30;
 
+// Crea l'oggetto di segmentazione SAC (Sample Consensus)
+pcl::SACSegmentation<pcl::PointXYZ> seg;
+pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+
+// Configura il metodo RANSAC e il modello sferico
+
+double baseline = 0.12;
 boost::array<double, 9> CamIntrMat;
 
 struct line{
     double slope;
     double intercept;
 };
+
+cv::Mat PL;
+cv::Mat PR;
+cv::Mat T = (cv::Mat_<double>(3, 1) << -0.1166182989733702, 0, 0);
 
 int fx;
 int fy;
@@ -126,7 +145,6 @@ bool areElementsSimilar(const std::vector<float>& vec, float epsilon) {
     return true; // Tutti gli elementi sono simili
 }
 
-
 bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accep_radius){
     //Controllo di plausibilità
     line line1 = line_equation(centers[0], centers[3]);
@@ -152,20 +170,33 @@ bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accep_radiu
         }
     }
 
-    for (int i = 1; i < 4; ++i) { 
-        if (std::fabs(radius[i] - radius[0]) >= accep_radius) {
-            if (DEBUG) ROS_INFO("[Stereo] Centers does not pass the filter, radius: %f", std::fabs(radius[i] - radius[0]));
-            return false;
-        }
+    // for (int i = 1; i < 4; ++i) { 
+    //     if (std::fabs(radius[i] - radius[0]) >= accep_radius) {
+    //         if (DEBUG) ROS_INFO("[Stereo] Centers does not pass the filter, radius: %f", std::fabs(radius[i] - radius[0]));
+    //         return false;
+    //     }
+    // }
+    double a = (accep_radius - delta_filter_accept);
+    double b = (accep_radius + delta_filter_accept);
+    ROS_INFO("[Stereo]a: %f, b: %f", a, b);
+    //TODO: controllare se cosi funziona
+    if (max_radius < a || max_radius > b) {
+        if (DEBUG) ROS_INFO("[Stereo] Centers does not pass the filter, radius: %f", max_radius);
+        return false;
     }
-
     return true;
 }
 
 std::vector<pcl::PointXYZ> calculate_TD_Centers(std::vector<opencv_apps::Point2D> left_centers, std::vector<opencv_apps::Point2D> right_centers){
     std::vector<pcl::PointXYZ> TD_centers;
+    
     for(int i = 0; i < 4; i++){
         double z = ((fx * baseline)/(left_centers[i].x - right_centers[i].x));
+        ROS_INFO("Disparity: %f", (left_centers[i].x - right_centers[i].x));
+        
+        // if(((int)left_centers[i].x - (int)right_centers[i].x) % 2 == 1){
+        //     ROS_ERROR("DISPARIIIIIIIIIIIIIIIIIIIIIIIII");
+        // }
         //Calcola la coordinata X utilizzando la triangolazione stereo
         double x = z * ((left_centers[i].x - cx) + (right_centers[i].x - cx)) / (2 * fx);
         //Calcola la coordinata Y utilizzando la triangolazione stereo
@@ -173,6 +204,50 @@ std::vector<pcl::PointXYZ> calculate_TD_Centers(std::vector<opencv_apps::Point2D
         double y = z * ((left_centers[i].y - cy) + (right_centers[i].y - cy)) / (2 * fy);
 
         pcl::PointXYZ p(x + 0.06, y, z);
+        TD_centers.push_back(p);
+    }
+
+    return TD_centers;
+}
+
+std::vector<pcl::PointXYZ> calculate_TD_Centers_proj(std::vector<opencv_apps::Point2D> left_centers, std::vector<opencv_apps::Point2D> right_centers){
+
+    std::vector<cv::Point2f> left_centers_f;
+    std::vector<cv::Point2f> right_centers_f;
+
+    for(int i = 0; i < 4; i++){
+        left_centers_f.push_back(cv::Point2f(left_centers[i].x, left_centers[i].y));
+        right_centers_f.push_back(cv::Point2f(right_centers[i].x, right_centers[i].y));
+    }
+
+    // ROS_INFO("Points:");
+    // for(int i = 0; i < 4; i++){
+    //     ROS_INFO("%f, %f", right_centers_f[i].x, left_centers_f[i].y);
+    // }
+
+    // std::vector<std::vector<cv::Point2f>> points2d = {left_centers_f, right_centers_f};
+    // std::vector<cv::Mat> projection_matrices = {PL, PR};
+    // ROS_INFO("Printing PR");
+    // for (int i = 0; i < PR.rows; ++i)
+    // {
+    //     for (int j = 0; j < PR.cols; ++j)
+    //     {
+    //         ROS_INFO("%f", PR.at<double>(i, j));
+    //     }
+    //     ROS_INFO(" ");
+    // }
+
+    // Variabile di output per i punti 3D
+    cv::Mat points3d;
+    // Triangolazione dei punti
+    cv::triangulatePoints(PL, PR, left_centers_f, right_centers_f, points3d);
+
+    std::vector<pcl::PointXYZ> TD_centers;
+    for (int i = 0; i < points3d.cols; i++) {
+        cv::Mat x = points3d.col(i);
+        //ROS_INFO("%f, %f, %f, %f", x.at<float>(0), x.at<float>(1), x.at<float>(2), x.at<float>(3));
+        x /= x.at<float>(3); // Convertire da coordinate omogenee a non omogenee
+        pcl::PointXYZ p(x.at<float>(0), x.at<float>(1), x.at<float>(2));
         TD_centers.push_back(p);
     }
 
@@ -195,6 +270,7 @@ double percentile(std::vector<double> &vec, double p) {
 pcl::PointCloud<pcl::PointXYZ>::Ptr removeOutliersIQR(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
     // Assicurati che data sia un array 2D con 3 colonne (x, y, z)
     //CV_Assert(data.cols == 3 && data.type() == CV_64F);
+    ROS_INFO("Cloud size before: %d", cloud->size());
     pcl::PointCloud<pcl::PointXYZ> tmp_cloud = *cloud;
 
     std::vector<double> x_data, y_data, z_data;
@@ -205,12 +281,12 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr removeOutliersIQR(pcl::PointCloud<pcl::Point
     }
 
     // Calcola Q1 e Q3 per ogni dimensione
-    double Q1_x = percentile(x_data, 0.25);
-    double Q3_x = percentile(x_data, 0.75);
-    double Q1_y = percentile(y_data, 0.25);
-    double Q3_y = percentile(y_data, 0.75);
-    double Q1_z = percentile(z_data, 0.25);
-    double Q3_z = percentile(z_data, 0.75);
+    double Q1_x = percentile(x_data, 0.30);
+    double Q3_x = percentile(x_data, 0.70);
+    double Q1_y = percentile(y_data, 0.30);
+    double Q3_y = percentile(y_data, 0.70);
+    double Q1_z = percentile(z_data, 0.30);
+    double Q3_z = percentile(z_data, 0.70);
 
     // Calcola IQR per ogni dimensione
     double IQR_x = Q3_x - Q1_x;
@@ -237,6 +313,7 @@ pcl::PointCloud<pcl::PointXYZ>::Ptr removeOutliersIQR(pcl::PointCloud<pcl::Point
             filtered_data->push_back(tmp_cloud[i]);
         }
     }
+    ROS_INFO("Cloud size after: %d", filtered_data->size());
     return filtered_data;
 }
 
@@ -283,23 +360,32 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr final_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    if(filterCenters(left_centers, delta_filter_accept)){
-        if(filterCenters(right_centers, delta_filter_accept)){
+    if(filterCenters(left_centers, accep_radius)){
+        if(filterCenters(right_centers, accep_radius)){
             //I centri sono buoni posso calcolare i punti
-            std::vector<pcl::PointXYZ> circle_centers_TD = calculate_TD_Centers(left_centers, right_centers); 
+            std::vector<pcl::PointXYZ> circle_centers_TD = calculate_TD_Centers(left_centers, right_centers);
 
             for(int i = 0; i < 4; i++){
-                if (DEBUG) ROS_INFO("[Stereo] OK, adding centers to cumulative cloud x: %f, y: %f, z: %f, fx: %d",circle_centers_TD[i].x,circle_centers_TD[i].y,circle_centers_TD[i].z, fx);
+                if (DEBUG) ROS_INFO("[Stereo] OK, adding centers to cumulative cloud x: %f, y: %f, z: %f",circle_centers_TD[i].x,circle_centers_TD[i].y,circle_centers_TD[i].z);
                 // Forse andrebbe ruotato i punti prima?
                 cumulative_clouds[i]->push_back(circle_centers_TD[i]);
                 cumulative_cloud_centroid->push_back(circle_centers_TD[i]);
-                //qui devi fare IRQ
-                if(images_used_ > 100){
-                    cumulative_clouds[i] = removeOutliersIQR(cumulative_clouds[i]);
-                    pcl::PointXYZ centroid;
-                    pcl::computeCentroid(*cumulative_clouds[i], centroid);
-                    if (DEBUG) ROS_INFO("[Stereo] New centroid %d position = x: %f, y: %f, z: %f", i, centroid.x, centroid.y, centroid.z);
-                    final_cloud->push_back(centroid);
+
+                if(images_used_ > warmup_cloud){
+                    if(images_used_ % 10 == 0){
+                        // Esegui la segmentazione
+                        seg.setOptimizeCoefficients(true);
+                        seg.setModelType(pcl::SACMODEL_SPHERE);
+                        seg.setMethodType(pcl::SAC_RANSAC);
+                        seg.setDistanceThreshold(0.8);
+                        seg.setInputCloud(cumulative_clouds[i]);
+                        seg.segment(*inliers, *coefficients);
+                    }
+                    Eigen::Vector4f centroid;
+                    pcl::compute3DCentroid(*cumulative_clouds[i], *inliers, centroid);
+                    pcl::PointXYZ centroid_p(centroid[0], centroid[1], centroid[2]);
+                    if (DEBUG) ROS_INFO("[Stereo] New centroid %d position = x: %f, y: %f, z: %f", i, centroid_p.x, centroid_p.y, centroid_p.z);
+                    final_cloud->push_back(centroid_p);
                 }
             }   
         }else{
@@ -393,13 +479,28 @@ void warmup_callback(const std_msgs::Empty::ConstPtr &msg) {
     }
 }
 
-void camInfoCallback(const sensor_msgs::CameraInfoConstPtr &caminfo){
+void camInfoCallbackLeft(const sensor_msgs::CameraInfoConstPtr &caminfo){
     //Da cambiare metodo di assegnamento
     CamIntrMat = caminfo->K;
     fx = CamIntrMat[0];
     fy = CamIntrMat[4];
     cx = CamIntrMat[2];
     cy = CamIntrMat[5];
+
+    cv::Mat K = cv::Mat(3, 3, CV_64F, (void*)caminfo->K.elems);
+    cv::Mat TL = (cv::Mat_<double>(3, 1) << 0, 0, 0);
+    cv::hconcat(K, TL, PL);
+    //PL = cv::Mat(3, 4, CV_64F, (void*)caminfo->P.elems);S
+}
+
+void camInfoCallbackRight(const sensor_msgs::CameraInfoConstPtr &caminfo){
+    //Da cambiare metodo di assegnamento
+    cv::Mat KR = cv::Mat(3, 3, CV_64F, (void*)caminfo->K.elems);
+    cv::Mat RR = cv::Mat(3, 3, CV_64F, (void*)caminfo->R.elems);
+    cv::Mat RTR;
+    cv::hconcat(RR, T, RTR);
+    PR = KR * RTR;
+    //PR = cv::Mat(3, 4, CV_64F, (void*)caminfo->P.elems);
 }
 
 int main(int argc, char **argv) {
@@ -407,8 +508,8 @@ int main(int argc, char **argv) {
     ros::NodeHandle nh;        // GLOBAL
     ros::NodeHandle nh_("~");  // LOCAL
 
-    //Controllare perchè potrebbe chiamarsi diversamente
-    ros::Subscriber cam_info = nh.subscribe<sensor_msgs::CameraInfo>("zed2i/zed_node/left/camera_info", 1, camInfoCallback);
+    ros::Subscriber cam_info_l = nh.subscribe<sensor_msgs::CameraInfo>("zed2i/zed_node/left_raw/camera_info", 1, camInfoCallbackLeft);
+    ros::Subscriber cam_info_r = nh.subscribe<sensor_msgs::CameraInfo>("zed2i/zed_node/right_raw/camera_info", 1, camInfoCallbackRight);
 
     message_filters::Subscriber<opencv_apps::CircleArrayStamped> left_circles(nh, "circle_detection_left/left_circles", 1);
     message_filters::Subscriber<opencv_apps::CircleArrayStamped> right_circles(nh, "circle_detection_right/right_circles", 1);
