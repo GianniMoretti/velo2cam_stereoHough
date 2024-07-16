@@ -67,11 +67,9 @@ typedef Eigen::Matrix<double, 12, 1> Vector12d;
 
 tf::Transform transf;
 
-std::vector<std::vector<std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>,
-                                   std::vector<pcl::PointXYZ>>>>
+std::vector<std::vector<std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>,std::vector<pcl::PointXYZ>>>>
     sensor1_buffer;
-std::vector<std::vector<std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>,
-                                   std::vector<pcl::PointXYZ>>>>
+std::vector<std::vector<std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>, std::vector<pcl::PointXYZ>>>>
     sensor2_buffer;
 
 int S1_WARMUP_COUNT = 0, S2_WARMUP_COUNT = 0;

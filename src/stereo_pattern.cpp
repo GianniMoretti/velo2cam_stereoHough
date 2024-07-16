@@ -71,8 +71,8 @@ bool save_to_file_;
 std::ofstream savefile;
 
 //Questi vanno presi dai parametri  Da cambiare questa cosa
-double accep_radius = 106.0;
-double delta_filter_accept = 5.0;
+double accep_radius = 170.0;
+double delta_filter_accept = 8.0;
 int warmup_cloud = 30;
 
 // Crea l'oggetto di segmentazione SAC (Sample Consensus)
@@ -92,6 +92,7 @@ struct line{
 
 cv::Mat PL;
 cv::Mat PR;
+//cv::Mat T = (cv::Mat_<double>(3, 1) << -0.1166182989733702, 0, 0);
 cv::Mat T = (cv::Mat_<double>(3, 1) << -0.1166182989733702, 0, 0);
 
 int fx;
@@ -192,11 +193,7 @@ std::vector<pcl::PointXYZ> calculate_TD_Centers(std::vector<opencv_apps::Point2D
     
     for(int i = 0; i < 4; i++){
         double z = ((fx * baseline)/(left_centers[i].x - right_centers[i].x));
-        ROS_INFO("Disparity: %f", (left_centers[i].x - right_centers[i].x));
-        
-        // if(((int)left_centers[i].x - (int)right_centers[i].x) % 2 == 1){
-        //     ROS_ERROR("DISPARIIIIIIIIIIIIIIIIIIIIIIIII");
-        // }
+
         //Calcola la coordinata X utilizzando la triangolazione stereo
         double x = z * ((left_centers[i].x - cx) + (right_centers[i].x - cx)) / (2 * fx);
         //Calcola la coordinata Y utilizzando la triangolazione stereo
@@ -254,69 +251,6 @@ std::vector<pcl::PointXYZ> calculate_TD_Centers_proj(std::vector<opencv_apps::Po
     return TD_centers;
 }
 
-// Funzione per calcolare il percentile
-double percentile(std::vector<double> &vec, double p) {
-    std::sort(vec.begin(), vec.end());
-    size_t n = vec.size();
-    double pos = p * (n + 1);
-    size_t k = static_cast<size_t>(pos);
-    double d = pos - k;
-    if (k == 0) return vec[0];
-    if (k >= n) return vec[n - 1];
-    return vec[k - 1] + d * (vec[k] - vec[k - 1]);
-}
-
-// Funzione per rimuovere outlier utilizzando l'IQR
-pcl::PointCloud<pcl::PointXYZ>::Ptr removeOutliersIQR(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud) {
-    // Assicurati che data sia un array 2D con 3 colonne (x, y, z)
-    //CV_Assert(data.cols == 3 && data.type() == CV_64F);
-    ROS_INFO("Cloud size before: %d", cloud->size());
-    pcl::PointCloud<pcl::PointXYZ> tmp_cloud = *cloud;
-
-    std::vector<double> x_data, y_data, z_data;
-    for (int i = 0; i < cloud->size(); i++) {
-        x_data.push_back(tmp_cloud[i].x);
-        y_data.push_back(tmp_cloud[i].y);
-        z_data.push_back(tmp_cloud[i].z);
-    }
-
-    // Calcola Q1 e Q3 per ogni dimensione
-    double Q1_x = percentile(x_data, 0.30);
-    double Q3_x = percentile(x_data, 0.70);
-    double Q1_y = percentile(y_data, 0.30);
-    double Q3_y = percentile(y_data, 0.70);
-    double Q1_z = percentile(z_data, 0.30);
-    double Q3_z = percentile(z_data, 0.70);
-
-    // Calcola IQR per ogni dimensione
-    double IQR_x = Q3_x - Q1_x;
-    double IQR_y = Q3_y - Q1_y;
-    double IQR_z = Q3_z - Q1_z;
-
-    // Calcola i limiti inferiori e superiori
-    double lower_bound_x = Q1_x - 1.5 * IQR_x;
-    double upper_bound_x = Q3_x + 1.5 * IQR_x;
-    double lower_bound_y = Q1_y - 1.5 * IQR_y;
-    double upper_bound_y = Q3_y + 1.5 * IQR_y;
-    double lower_bound_z = Q1_z - 1.5 * IQR_z;
-    double upper_bound_z = Q3_z + 1.5 * IQR_z;
-
-    // Filtra i dati
-    pcl::PointCloud<pcl::PointXYZ>::Ptr filtered_data(new pcl::PointCloud<pcl::PointXYZ>);
-    for (int i = 0; i < tmp_cloud.size(); i++) {
-        double x = tmp_cloud[i].x;
-        double y = tmp_cloud[i].y;
-        double z = tmp_cloud[i].z;
-        if (x >= lower_bound_x && x <= upper_bound_x &&
-            y >= lower_bound_y && y <= upper_bound_y &&
-            z >= lower_bound_z && z <= upper_bound_z) {
-            filtered_data->push_back(tmp_cloud[i]);
-        }
-    }
-    ROS_INFO("Cloud size after: %d", filtered_data->size());
-    return filtered_data;
-}
-
 void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &left_circles_stp, const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &right_circles_stp) {
     if (DEBUG) {
         ROS_INFO("----------------------------------------------------------------------------------");
@@ -341,8 +275,14 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
     std::vector<opencv_apps::Point2D> right_centers;
 
     for(int i = 0; i < 4; i++){
-        left_centers.push_back(left_circles[i].center);
-        right_centers.push_back(right_circles[i].center);
+        opencv_apps::Point2D ptmp_l;
+        ptmp_l.x = left_circles[i].center.x + (float)(std::rand() % 2);
+        ptmp_l.y = left_circles[i].center.y + (float)(std::rand() % 2);
+        left_centers.push_back(ptmp_l);
+        opencv_apps::Point2D ptmp_r;
+        ptmp_r.x = right_circles[i].center.x + (float)(std::rand() % 2);
+        ptmp_r.y = right_circles[i].center.y + (float)(std::rand() % 2);
+        right_centers.push_back(ptmp_r);
     }
 
     sortCenters(left_centers);
@@ -517,6 +457,8 @@ int main(int argc, char **argv) {
     typedef message_filters::sync_policies::ApproximateTime<opencv_apps::CircleArrayStamped, opencv_apps::CircleArrayStamped> AppSync;
     message_filters::Synchronizer<AppSync> sync_(AppSync(100), left_circles, right_circles);
     sync_.registerCallback(boost::bind(&callback, _1, _2));
+
+    std::srand(static_cast<unsigned int>(std::time(nullptr)));
 
     if (DEBUG) {
         cumulative_pub = nh_.advertise<PointCloud2>("cumulative_cloud", 1);
