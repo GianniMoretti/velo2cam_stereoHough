@@ -71,7 +71,7 @@ bool save_to_file_;
 std::ofstream savefile;
 
 //Questi vanno presi dai parametri  Da cambiare questa cosa
-double accep_radius = 170.0;
+double accep_radius = 140.0;
 double delta_filter_accept = 8.0;
 int warmup_cloud = 30;
 
@@ -303,7 +303,7 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
     if(filterCenters(left_centers, accep_radius)){
         if(filterCenters(right_centers, accep_radius)){
             //I centri sono buoni posso calcolare i punti
-            std::vector<pcl::PointXYZ> circle_centers_TD = calculate_TD_Centers(left_centers, right_centers);
+            std::vector<pcl::PointXYZ> circle_centers_TD = calculate_TD_Centers_proj(left_centers, right_centers);
 
             for(int i = 0; i < 4; i++){
                 if (DEBUG) ROS_INFO("[Stereo] OK, adding centers to cumulative cloud x: %f, y: %f, z: %f",circle_centers_TD[i].x,circle_centers_TD[i].y,circle_centers_TD[i].z);
@@ -427,10 +427,28 @@ void camInfoCallbackLeft(const sensor_msgs::CameraInfoConstPtr &caminfo){
     cx = CamIntrMat[2];
     cy = CamIntrMat[5];
 
-    cv::Mat K = cv::Mat(3, 3, CV_64F, (void*)caminfo->K.elems);
+    cv::Mat KL = cv::Mat(3, 3, CV_64F, (void*)caminfo->K.elems);
     cv::Mat TL = (cv::Mat_<double>(3, 1) << 0, 0, 0);
-    cv::hconcat(K, TL, PL);
+    cv::hconcat(KL, TL, PL);
     //PL = cv::Mat(3, 4, CV_64F, (void*)caminfo->P.elems);S
+    ROS_INFO("Printing KL");
+    for (int i = 0; i < KL.rows; ++i)
+    {
+        for (int j = 0; j < KL.cols; ++j)
+        {
+            ROS_INFO("%f", KL.at<double>(i, j));
+        }
+        ROS_INFO(" ");
+    }
+    ROS_INFO("Printing PL");
+    for (int i = 0; i < PL.rows; ++i)
+    {
+        for (int j = 0; j < PL.cols; ++j)
+        {
+            ROS_INFO("%f", PL.at<double>(i, j));
+        }
+        ROS_INFO(" ");
+    }
 }
 
 void camInfoCallbackRight(const sensor_msgs::CameraInfoConstPtr &caminfo){
@@ -441,6 +459,33 @@ void camInfoCallbackRight(const sensor_msgs::CameraInfoConstPtr &caminfo){
     cv::hconcat(RR, T, RTR);
     PR = KR * RTR;
     //PR = cv::Mat(3, 4, CV_64F, (void*)caminfo->P.elems);
+    ROS_INFO("Printing KR");
+    for (int i = 0; i < KR.rows; ++i)
+    {
+        for (int j = 0; j < KR.cols; ++j)
+        {
+            ROS_INFO("%f", KR.at<double>(i, j));
+        }
+        ROS_INFO(" ");
+    }
+    ROS_INFO("Printing RR");
+    for (int i = 0; i < RR.rows; ++i)
+    {
+        for (int j = 0; j < RR.cols; ++j)
+        {
+            ROS_INFO("%f", RR.at<double>(i, j));
+        }
+        ROS_INFO(" ");
+    }
+    ROS_INFO("Printing PR");
+    for (int i = 0; i < PR.rows; ++i)
+    {
+        for (int j = 0; j < PR.cols; ++j)
+        {
+            ROS_INFO("%f", PR.at<double>(i, j));
+        }
+        ROS_INFO(" ");
+    }
 }
 
 int main(int argc, char **argv) {
