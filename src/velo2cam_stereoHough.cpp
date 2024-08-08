@@ -153,26 +153,16 @@ void calibrateExtrinsics(int seek_iter = -1) {
     }
     ROS_INFO("Synchronizing cluster centroids");
   } else {  // Add clouds (per sensor) from every position using last available
-            // detection
+    // detection
     for (int i = 0; i < TARGET_POSITIONS_COUNT + 1; ++i) {
       // Sensor 1
-      local_sensor1_vector.insert(
-          local_sensor1_vector.end(),
-          std::get<3>(sensor1_buffer[i].back()).begin(),
-          std::get<3>(sensor1_buffer[i].back())
-              .end());  // Add sorted centers (for equations)
-      *local_sensor1_cloud += std::get<2>(
-          sensor1_buffer[i].back());  // Add centers cloud (for registration)
+      local_sensor1_vector.insert(local_sensor1_vector.end(), std::get<3>(sensor1_buffer[i].back()).begin(), std::get<3>(sensor1_buffer[i].back()).end());  // Add sorted centers (for equations)
+      *local_sensor1_cloud += std::get<2>(sensor1_buffer[i].back());  // Add centers cloud (for registration)
       used_sensor1 = std::get<1>(sensor2_buffer[i].back());
 
       // Sensor 2
-      local_sensor2_vector.insert(
-          local_sensor2_vector.end(),
-          std::get<3>(sensor2_buffer[i].back()).begin(),
-          std::get<3>(sensor2_buffer[i].back())
-              .end());  // Add sorted centers (for equations)
-      *local_sensor2_cloud += std::get<2>(
-          sensor2_buffer[i].back());  // Add centers cloud (for registration)
+      local_sensor2_vector.insert(local_sensor2_vector.end(), std::get<3>(sensor2_buffer[i].back()).begin(), std::get<3>(sensor2_buffer[i].back()).end());  // Add sorted centers (for equations)
+      *local_sensor2_cloud += std::get<2>(sensor2_buffer[i].back());  // Add centers cloud (for registration)
     }
   }
 
@@ -196,6 +186,7 @@ void calibrateExtrinsics(int seek_iter = -1) {
     sorted_centers2->push_back(local_sensor2_vector[i]);
   }
 
+  //TODO:: Qui fa la trasformazione
   Eigen::Matrix4f final_transformation;
   const pcl::registration::TransformationEstimationSVD<pcl::PointXYZ,pcl::PointXYZ> trans_est_svd(true);
   trans_est_svd.estimateRigidTransformation(*sorted_centers1, *sorted_centers2, final_transformation);
@@ -242,13 +233,12 @@ void calibrateExtrinsics(int seek_iter = -1) {
   sensor2Received = false;
 }
 
-void sensor1_callback(
-  const velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor1_centroids) {
+void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor1_centroids) {
   sensor1_frame_id = sensor1_centroids->header.frame_id;
   if (!S1_WARMUP_DONE) {
     S1_WARMUP_COUNT++;
     cout << "Clusters from " << sensor1_frame_id << ": " << S1_WARMUP_COUNT << "/10" << '\r' << flush;
-    if (S1_WARMUP_COUNT >= 10)  // TODO: Change to param?
+    if (S1_WARMUP_COUNT >= 100)  // TODO: Change to param?
     {
       cout << endl;
       sensor1_sub.shutdown();
@@ -273,10 +263,8 @@ void sensor1_callback(
         S1_WARMUP_COUNT = 0;
       }
 
-      sensor1_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>(
-          "cloud1", 100, sensor1_callback);
-      sensor2_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>(
-          "cloud2", 100, sensor2_callback);
+      sensor1_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>("cloud1", 100, sensor1_callback);
+      sensor2_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>("cloud2", 100, sensor2_callback);
     }
     return;
   }
@@ -372,8 +360,7 @@ void sensor1_callback(
     it.data = min(sensor1_count, sensor2_count);
     iterations_pub.publish(it);
 
-    if (sensor1_count >= TARGET_ITERATIONS &&
-        sensor2_count >= TARGET_ITERATIONS) {
+    if (sensor1_count >= TARGET_ITERATIONS && sensor2_count >= TARGET_ITERATIONS) {
       cout << endl;
       sensor1_sub.shutdown();
       sensor2_sub.shutdown();
@@ -383,8 +370,7 @@ void sensor1_callback(
         answer = "n";
       } else {
         cout << "Target iterations reached. Do you need another target "
-                "location? [y/N]"
-            << endl;
+                "location? [y/N]" << endl;
         getline(cin, answer);
       }
       if (answer == "n" || answer == "N" || answer == "") {
@@ -394,8 +380,7 @@ void sensor1_callback(
         if (results_every_pose) calibrateExtrinsics(-1);
         TARGET_POSITIONS_COUNT++;
         cout << "Please, move the target to its new position and adjust the "
-                "filters for each sensor before the calibration starts."
-              << endl;
+                "filters for each sensor before the calibration starts." << endl;
         // Start over if other position of the target is required
         std_msgs::Empty myMsg;
         sensor_switch_pub.publish(myMsg);  // Set sensor nodes to warmup phase
@@ -408,10 +393,8 @@ void sensor1_callback(
         sensor1_count = 0;
         sensor2_count = 0;
       }
-      sensor1_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>(
-          "cloud1", 100, sensor1_callback);
-      sensor2_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>(
-          "cloud2", 100, sensor2_callback);
+      sensor1_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>("cloud1", 100, sensor1_callback);
+      sensor2_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>("cloud2", 100, sensor2_callback);
       return;
     }
   } else {
@@ -428,17 +411,16 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
   sensor2_frame_id = sensor2_centroids->header.frame_id;
   if (!S2_WARMUP_DONE && S1_WARMUP_DONE) {
     S2_WARMUP_COUNT++;
-    cout << "Clusters from " << sensor2_frame_id << ": " << S2_WARMUP_COUNT<< "/10" << '\r' << flush;
-    if (S2_WARMUP_COUNT >= 10)  // TODO: Change to param?
+    cout << "Clusters from " << sensor2_frame_id << ": " << S2_WARMUP_COUNT << "/10" << '\r' << flush;
+    if (S2_WARMUP_COUNT >= 100)  // TODO: Change to param?
     {
       cout << endl;
       sensor1_sub.shutdown();
       sensor2_sub.shutdown();
 
       cout << "Clusters from " << sensor2_frame_id
-           << " received. Is the warmup done? (you can also reset this "
-              "position) [Y/n/r]"
-           << endl;
+      << " received. Is the warmup done? (you can also reset this "
+      "position) [Y/n/r]" << endl;
       string answer;
       getline(cin, answer);
       if (answer == "y" || answer == "Y" || answer == "") {
@@ -446,16 +428,14 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
 
         if (!S1_WARMUP_DONE) {
           cout << "Filters for sensor 2 are adjusted now. Please, proceed with "
-                  "the other sensor."
-               << endl;
+                  "the other sensor." << endl;
         } else {  // Both sensors adjusted
           cout << "Warmup phase completed. Starting calibration phase." << endl;
           std_msgs::Empty myMsg;
           sensor_switch_pub.publish(myMsg);  //
         }
-      } else if (answer == "r" ||
-                 answer == "R") {  // Reset this position and
-                                   // go back to Sensor 1 warmup
+      } else if (answer == "r" || answer == "R") {  // Reset this position and
+        // go back to Sensor 1 warmup
         S1_WARMUP_DONE = false;
         S1_WARMUP_COUNT = 0;
         S2_WARMUP_DONE = false;
@@ -465,8 +445,7 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
         sensor1_count = 0;
         sensor2_count = 0;
         cout << "Please, adjust the filters for each sensor before the "
-                "calibration starts."
-             << endl;
+                "calibration starts." << endl;
       } else {  // Reset counter to allow further warmup
         S2_WARMUP_COUNT = 0;
       }
@@ -523,8 +502,7 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
 
     sensor_msgs::PointCloud2 colour_cloud;
     pcl::toROSMsg(*isensor2_cloud, colour_cloud);
-    colour_cloud.header.frame_id =
-        is_sensor2_cam ? sensor2_rotated_frame_id : sensor2_frame_id;
+    colour_cloud.header.frame_id = is_sensor2_cam ? sensor2_rotated_frame_id : sensor2_frame_id;
     colour_sensor2_pub.publish(colour_cloud);
   }
 
@@ -538,11 +516,9 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
 
   if (DEBUG) ROS_INFO("[V2C] sensor2");
 
-  for (vector<pcl::PointXYZ>::iterator it = sensor2_vector.begin();
-       it < sensor2_vector.end(); ++it) {
+  for (vector<pcl::PointXYZ>::iterator it = sensor2_vector.begin(); it < sensor2_vector.end(); ++it) {
     if (DEBUG)
-      cout << "c" << it - sensor2_vector.begin() << "="
-           << "[" << (*it).x << " " << (*it).y << " " << (*it).z << "]" << endl;
+      cout << "c" << it - sensor2_vector.begin() << "=" << "[" << (*it).x << " " << (*it).y << " " << (*it).z << "]" << endl;
   }
 
   // sync_iterations is designed to extract a calibration result every single
@@ -569,8 +545,7 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
     it.data = min(sensor1_count, sensor2_count);
     iterations_pub.publish(it);
 
-    if (sensor1_count >= TARGET_ITERATIONS &&
-        sensor2_count >= TARGET_ITERATIONS) {
+    if (sensor1_count >= TARGET_ITERATIONS && sensor2_count >= TARGET_ITERATIONS) {
       cout << endl;
       sensor1_sub.shutdown();
       sensor2_sub.shutdown();
@@ -580,8 +555,7 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
         answer = "n";
       } else {
         cout << "Target iterations reached. Do you need another target "
-                "location? [y/N]"
-             << endl;
+                "location? [y/N]" << endl;
         getline(cin, answer);
       }
       if (answer == "n" || answer == "N" || answer == "") {
@@ -591,8 +565,7 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
         if (results_every_pose) calibrateExtrinsics(-1);
         TARGET_POSITIONS_COUNT++;
         cout << "Please, move the target to its new position and adjust the "
-                "filters for each sensor before the calibration starts."
-             << endl;
+                "filters for each sensor before the calibration starts." << endl;
         // Start over if other position of the target is required
         std_msgs::Empty myMsg;
         sensor_switch_pub.publish(myMsg);  // Set sensor nodes to warmup phase
@@ -605,10 +578,8 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
         sensor1_count = 0;
         sensor2_count = 0;
       }
-      sensor1_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>(
-          "cloud1", 100, sensor1_callback);
-      sensor2_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>(
-          "cloud2", 100, sensor2_callback);
+      sensor1_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>("cloud1", 100, sensor1_callback);
+      sensor2_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>("cloud2", 100, sensor2_callback);
       return;
     }
   } else {
@@ -649,15 +620,11 @@ int main(int argc, char **argv) {
   sensor2_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>("cloud2", 100, sensor2_callback);
 
   if (DEBUG) {
-    clusters_sensor2_pub =
-        nh_->advertise<sensor_msgs::PointCloud2>("clusters_sensor2", 1);
-    clusters_sensor1_pub =
-        nh_->advertise<sensor_msgs::PointCloud2>("clusters_sensor1", 1);
+    clusters_sensor2_pub = nh_->advertise<sensor_msgs::PointCloud2>("clusters_sensor2", 1);
+    clusters_sensor1_pub = nh_->advertise<sensor_msgs::PointCloud2>("clusters_sensor1", 1);
 
-    colour_sensor2_pub =
-        nh_->advertise<sensor_msgs::PointCloud2>("colour_sensor2", 1);
-    colour_sensor1_pub =
-        nh_->advertise<sensor_msgs::PointCloud2>("colour_sensor1", 1);
+    colour_sensor2_pub = nh_->advertise<sensor_msgs::PointCloud2>("colour_sensor2", 1);
+    colour_sensor1_pub = nh_->advertise<sensor_msgs::PointCloud2>("colour_sensor1", 1);
   }
 
   sensor_switch_pub = nh.advertise<std_msgs::Empty>("warmup_switch", 1);
@@ -711,17 +678,14 @@ int main(int argc, char **argv) {
   // Get tf data
   tf::Transform inverse = tf_sensor1_sensor2.inverse();
   double roll, pitch, yaw;
-  double xt = inverse.getOrigin().getX(), yt = inverse.getOrigin().getY(),
-         zt = inverse.getOrigin().getZ();
+  double xt = inverse.getOrigin().getX(), yt = inverse.getOrigin().getY(), zt = inverse.getOrigin().getZ();
   inverse.getBasis().getRPY(roll, pitch, yaw);
 
   std::string path = ros::package::getPath("velo2cam_stereoHough");
   string backuppath = path + "/launch/calibrated_tf_" + str + ".launch";
   path = path + "/launch/calibrated_tf.launch";
 
-  cout << endl
-       << "Creating .launch file with calibrated TF in: " << endl
-       << path.c_str() << endl;
+  cout << endl << "Creating .launch file with calibrated TF in: " << endl << path.c_str() << endl;
   // Create .launch file with calibrated TF
   TiXmlDocument doc;
   TiXmlDeclaration *decl = new TiXmlDeclaration("1.0", "utf-8", "");
@@ -738,9 +702,7 @@ int main(int argc, char **argv) {
   if (is_sensor2_cam) {
     sensor2_final_transformation_frame = sensor2_rotated_frame_id;
     std::ostringstream sensor2_rot_stream_pub;
-    sensor2_rot_stream_pub << "0 0 0 -1.57079632679 0 -1.57079632679 "
-                           << sensor2_rotated_frame_id << " "
-                           << sensor2_frame_id << " 10";
+    sensor2_rot_stream_pub << "0 0 0 -1.57079632679 0 -1.57079632679 " << sensor2_rotated_frame_id << " " << sensor2_frame_id << " 10";
     string sensor2_rotation = sensor2_rot_stream_pub.str();
 
     TiXmlElement *sensor2_rotation_node = new TiXmlElement("node");
@@ -755,9 +717,7 @@ int main(int argc, char **argv) {
   if (is_sensor1_cam) {
     sensor1_final_transformation_frame = sensor1_rotated_frame_id;
     std::ostringstream sensor1_rot_stream_pub;
-    sensor1_rot_stream_pub << "0 0 0 -1.57079632679 0 -1.57079632679 "
-                           << sensor1_rotated_frame_id << " "
-                           << sensor1_frame_id << " 10";
+    sensor1_rot_stream_pub << "0 0 0 -1.57079632679 0 -1.57079632679 " << sensor1_rotated_frame_id << " " << sensor1_frame_id << " 10";
     string sensor1_rotation = sensor1_rot_stream_pub.str();
 
     TiXmlElement *sensor1_rotation_node = new TiXmlElement("node");

@@ -1,7 +1,7 @@
 <launch>
 
-  <arg name="sensor1_type" default="lidar"/>
-  <arg name="sensor2_type" default="mono"/>
+  <arg name="sensor1_type" default="stereo"/>
+  <arg name="sensor2_type" default="lidar"/>
   <arg name="sensor1_id" default="0"/>
   <arg name="sensor2_id" default="0"/>
 

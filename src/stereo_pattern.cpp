@@ -71,7 +71,7 @@ bool save_to_file_;
 std::ofstream savefile;
 
 //Questi vanno presi dai parametri  Da cambiare questa cosa
-double accep_radius = 140.0;
+double accep_radius = 70.0;
 double delta_filter_accept = 8.0;
 int warmup_cloud = 30;
 
@@ -111,10 +111,9 @@ std_msgs::Header header_;
 
 void sortCenters(std::vector<opencv_apps::Point2D>& centers) {
     std::sort(centers.begin(), centers.end(), [](const opencv_apps::Point2D& a, const opencv_apps::Point2D& b) {
-        // Primo ordina per il primo elemento
+        // Primo ordina per il primo elemento, poi per il secondo
         return a.y < b.y;
     });
-    //TODO: da vedere che centers usato così sicuro non va bene
     if (centers[0].x > centers[1].x){
         opencv_apps::Point2D tmp;
         tmp = centers[0];
@@ -197,7 +196,6 @@ bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accep_radiu
     double a = (accep_radius - delta_filter_accept);
     double b = (accep_radius + delta_filter_accept);
     ROS_INFO("[Stereo]a: %f, b: %f", a, b);
-    //TODO: controllare se cosi funziona
     if (max_radius < a || max_radius > b) {
         if (DEBUG) ROS_INFO("[Stereo] Centers does not pass the filter, radius: %f", max_radius);
         return false;
@@ -210,7 +208,6 @@ std::vector<pcl::PointXYZ> calculate_TD_Centers(std::vector<opencv_apps::Point2D
     
     for(int i = 0; i < 4; i++){
         double z = ((fx * baseline)/(left_centers[i].x - right_centers[i].x));
-
         //Calcola la coordinata X utilizzando la triangolazione stereo
         double x = z * ((left_centers[i].x - cx) + (right_centers[i].x - cx)) / (2 * fx);
         //Calcola la coordinata Y utilizzando la triangolazione stereo
@@ -268,6 +265,14 @@ std::vector<pcl::PointXYZ> calculate_TD_Centers_proj(std::vector<opencv_apps::Po
     return TD_centers;
 }
 
+float randomAdding(){
+    if((std::rand() % 2) > 0){
+        return (float)(std::rand() % 2) * -1;
+    } else {
+        return (float)(std::rand() % 2);
+    }
+}
+
 void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &left_circles_stp, const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &right_circles_stp) {
     if (DEBUG) {
         ROS_INFO("----------------------------------------------------------------------------------");
@@ -293,12 +298,12 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
 
     for(int i = 0; i < 4; i++){
         opencv_apps::Point2D ptmp_l;
-        ptmp_l.x = left_circles[i].center.x + (float)(std::rand() % 2);
-        ptmp_l.y = left_circles[i].center.y + (float)(std::rand() % 2);
+        ptmp_l.x = left_circles[i].center.x + randomAdding();
+        ptmp_l.y = left_circles[i].center.y + randomAdding();
         left_centers.push_back(ptmp_l);
         opencv_apps::Point2D ptmp_r;
-        ptmp_r.x = right_circles[i].center.x + (float)(std::rand() % 2);
-        ptmp_r.y = right_circles[i].center.y + (float)(std::rand() % 2);
+        ptmp_r.x = right_circles[i].center.x + randomAdding();
+        ptmp_r.y = right_circles[i].center.y + randomAdding();
         right_centers.push_back(ptmp_r);
     }
 
@@ -330,8 +335,7 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
 
                 if(images_used_ > warmup_cloud){
                     if(images_used_ % 10 == 0){
-                        //TODO: Da cambiare
-                        // Esegui la segmentazione 
+                        // Esegui la segmentazione
                         seg.setOptimizeCoefficients(true);
                         seg.setModelType(pcl::SACMODEL_SPHERE);
                         seg.setMethodType(pcl::SAC_RANSAC);
@@ -449,24 +453,24 @@ void camInfoCallbackLeft(const sensor_msgs::CameraInfoConstPtr &caminfo){
     cv::Mat TL = (cv::Mat_<double>(3, 1) << 0, 0, 0);
     cv::hconcat(KL, TL, PL);
     //PL = cv::Mat(3, 4, CV_64F, (void*)caminfo->P.elems);S
-    ROS_INFO("Printing KL");
-    for (int i = 0; i < KL.rows; ++i)
-    {
-        for (int j = 0; j < KL.cols; ++j)
-        {
-            ROS_INFO("%f", KL.at<double>(i, j));
-        }
-        ROS_INFO(" ");
-    }
-    ROS_INFO("Printing PL");
-    for (int i = 0; i < PL.rows; ++i)
-    {
-        for (int j = 0; j < PL.cols; ++j)
-        {
-            ROS_INFO("%f", PL.at<double>(i, j));
-        }
-        ROS_INFO(" ");
-    }
+    //ROS_INFO("Printing KL");
+    // for (int i = 0; i < KL.rows; ++i)
+    // {
+    //     for (int j = 0; j < KL.cols; ++j)
+    //     {
+    //         ROS_INFO("%f", KL.at<double>(i, j));
+    //     }
+    //     ROS_INFO(" ");
+    // }
+    // ROS_INFO("Printing PL");
+    // for (int i = 0; i < PL.rows; ++i)
+    // {
+    //     for (int j = 0; j < PL.cols; ++j)
+    //     {
+    //         ROS_INFO("%f", PL.at<double>(i, j));
+    //     }
+    //     ROS_INFO(" ");
+    // }
 }
 
 void camInfoCallbackRight(const sensor_msgs::CameraInfoConstPtr &caminfo){
@@ -477,33 +481,33 @@ void camInfoCallbackRight(const sensor_msgs::CameraInfoConstPtr &caminfo){
     cv::hconcat(RR, T, RTR);
     PR = KR * RTR;
     //PR = cv::Mat(3, 4, CV_64F, (void*)caminfo->P.elems);
-    ROS_INFO("Printing KR");
-    for (int i = 0; i < KR.rows; ++i)
-    {
-        for (int j = 0; j < KR.cols; ++j)
-        {
-            ROS_INFO("%f", KR.at<double>(i, j));
-        }
-        ROS_INFO(" ");
-    }
-    ROS_INFO("Printing RR");
-    for (int i = 0; i < RR.rows; ++i)
-    {
-        for (int j = 0; j < RR.cols; ++j)
-        {
-            ROS_INFO("%f", RR.at<double>(i, j));
-        }
-        ROS_INFO(" ");
-    }
-    ROS_INFO("Printing PR");
-    for (int i = 0; i < PR.rows; ++i)
-    {
-        for (int j = 0; j < PR.cols; ++j)
-        {
-            ROS_INFO("%f", PR.at<double>(i, j));
-        }
-        ROS_INFO(" ");
-    }
+    // ROS_INFO("Printing KR");
+    // for (int i = 0; i < KR.rows; ++i)
+    // {
+    //     for (int j = 0; j < KR.cols; ++j)
+    //     {
+    //         ROS_INFO("%f", KR.at<double>(i, j));
+    //     }
+    //     ROS_INFO(" ");
+    // }
+    // ROS_INFO("Printing RR");
+    // for (int i = 0; i < RR.rows; ++i)
+    // {
+    //     for (int j = 0; j < RR.cols; ++j)
+    //     {
+    //         ROS_INFO("%f", RR.at<double>(i, j));
+    //     }
+    //     ROS_INFO(" ");
+    // }
+    // ROS_INFO("Printing PR");
+    // for (int i = 0; i < PR.rows; ++i)
+    // {
+    //     for (int j = 0; j < PR.cols; ++j)
+    //     {
+    //         ROS_INFO("%f", PR.at<double>(i, j));
+    //     }
+    //     ROS_INFO(" ");
+    // }
 }
 
 int main(int argc, char **argv) {

@@ -146,11 +146,8 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
     }
   }
 
-  float THRESHOLD =
-      gradient_threshold_;  // 10 cm between the pattern and the background
-  for (pcl::PointCloud<Velodyne::Point>::iterator pt =
-           velocloud->points.begin();
-       pt < velocloud->points.end(); ++pt) {
+  float THRESHOLD = gradient_threshold_;  // 10 cm between the pattern and the background
+  for (pcl::PointCloud<Velodyne::Point>::iterator pt = velocloud->points.begin(); pt < velocloud->points.end(); ++pt) {
     if (pt->intensity > THRESHOLD) {
       edges_cloud->push_back(*pt);
     }
@@ -183,10 +180,8 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
       Velodyne::getRings(*pattern_cloud, rings_count_);
 
   // Conversion from Velodyne::Point to pcl::PointXYZ
-  for (vector<vector<Velodyne::Point *>>::iterator ring = rings2.begin();
-       ring < rings2.end(); ++ring) {
-    for (vector<Velodyne::Point *>::iterator pt = ring->begin();
-         pt < ring->end(); ++pt) {
+  for (vector<vector<Velodyne::Point *>>::iterator ring = rings2.begin(); ring < rings2.end(); ++ring) {
+    for (vector<Velodyne::Point *>::iterator pt = ring->begin(); pt < ring->end(); ++pt) {
       pcl::PointXYZ point;
       point.x = (*pt)->x;
       point.y = (*pt)->y;
@@ -235,8 +230,7 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
   pcl::transformPointCloud(*aux_cloud, *auxrotated_cloud, rotation);
   double zcoord_xyplane = auxrotated_cloud->at(0).z;
 
-  for (pcl::PointCloud<pcl::PointXYZ>::iterator pt = xy_cloud->points.begin();
-       pt < xy_cloud->points.end(); ++pt) {
+  for (pcl::PointCloud<pcl::PointXYZ>::iterator pt = xy_cloud->points.begin(); pt < xy_cloud->points.end(); ++pt) {
     pt->z = zcoord_xyplane;
   }
 
@@ -255,9 +249,10 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
       circle_radius_ + target_radius_tolerance_);
 
   pcl::ExtractIndices<pcl::PointXYZ> extract;
+
   if (DEBUG)
-    ROS_INFO("[LiDAR] Searching for points in cloud of size %lu",
-             xy_cloud->points.size());
+    ROS_INFO("[LiDAR] Searching for points in cloud of size %lu", xy_cloud->points.size());
+
   while (xy_cloud->points.size() > 3) {
     circle_segmentation.setInputCloud(xy_cloud);
     circle_segmentation.segment(*inliers3, *coefficients3);
@@ -294,8 +289,7 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
     xy_cloud.swap(cloud_f);
 
     if (DEBUG)
-      ROS_INFO("[LiDAR] Remaining points in cloud %lu",
-               xy_cloud->points.size());
+      ROS_INFO("[LiDAR] Remaining points in cloud %lu", xy_cloud->points.size());
   }
 
   if (centroid_candidates->size() < TARGET_NUM_CIRCLES) {
@@ -329,11 +323,8 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
     }
 
     // Compute candidates score
-    Square square_candidate(candidates, delta_width_circles_,
-                            delta_height_circles_);
-    groups_scores[i] = square_candidate.is_valid()
-                           ? 1.0
-                           : -1;  // -1 when it's not valid, 1 otherwise
+    Square square_candidate(candidates, delta_width_circles_, delta_height_circles_);
+    groups_scores[i] = square_candidate.is_valid() ? 1.0 : -1;  // -1 when it's not valid, 1 otherwise
   }
 
   int best_candidate_idx = -1;
@@ -361,15 +352,14 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
   }
 
   // Build selected centers set
-  pcl::PointCloud<pcl::PointXYZ>::Ptr rotated_back_cloud(
-      new pcl::PointCloud<pcl::PointXYZ>());
+  pcl::PointCloud<pcl::PointXYZ>::Ptr rotated_back_cloud( new pcl::PointCloud<pcl::PointXYZ>());
   for (int j = 0; j < groups[best_candidate_idx].size(); ++j) {
     pcl::PointXYZ center_rotated_back = pcl::transformPoint(
         centroid_candidates->at(groups[best_candidate_idx][j]),
         rotation.inverse());
     center_rotated_back.x = (-coefficients->values[1] * center_rotated_back.y -
-                             coefficients->values[2] * center_rotated_back.z -
-                             coefficients->values[3]) /
+                            coefficients->values[2] * center_rotated_back.z -
+                            coefficients->values[3]) /
                             coefficients->values[0];
 
     rotated_back_cloud->push_back(center_rotated_back);
@@ -379,8 +369,7 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
   if (save_to_file_) {
     std::vector<pcl::PointXYZ> sorted_centers;
     sortPatternCenters(rotated_back_cloud, sorted_centers);
-    for (std::vector<pcl::PointXYZ>::iterator it = sorted_centers.begin();
-         it < sorted_centers.end(); ++it) {
+    for (std::vector<pcl::PointXYZ>::iterator it = sorted_centers.begin(); it < sorted_centers.end(); ++it) {
       savefile << it->x << ", " << it->y << ", " << it->z << ", ";
     }
   }
@@ -405,23 +394,18 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
   coeff_pub.publish(m_coeff);
 
   if (DEBUG)
-    ROS_INFO("[LiDAR] %d/%d frames: %ld pts in cloud", clouds_used_,
-             clouds_proc_, cumulative_cloud->points.size());
+    ROS_INFO("[LiDAR] %d/%d frames: %ld pts in cloud", clouds_used_, clouds_proc_, cumulative_cloud->points.size());
 
   // Create cloud for publishing centers
-  pcl::PointCloud<pcl::PointXYZ>::Ptr centers_cloud(
-      new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PointCloud<pcl::PointXYZ>::Ptr centers_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
   // Compute circles centers
   if (!WARMUP_DONE) {  // Compute clusters from detections in the latest frame
-    getCenterClusters(cumulative_cloud, centers_cloud, cluster_tolerance_, 1,
-                      1);
+    getCenterClusters(cumulative_cloud, centers_cloud, cluster_tolerance_, 1, 1);
   } else {  // Use cumulative information from previous frames
-    getCenterClusters(cumulative_cloud, centers_cloud, cluster_tolerance_,
-                      min_cluster_factor_ * clouds_used_, clouds_used_);
+    getCenterClusters(cumulative_cloud, centers_cloud, cluster_tolerance_, min_cluster_factor_ * clouds_used_, clouds_used_);
     if (centers_cloud->points.size() > TARGET_NUM_CIRCLES) {
-      getCenterClusters(cumulative_cloud, centers_cloud, cluster_tolerance_,
-                        3.0 * clouds_used_ / 4.0, clouds_used_);
+      getCenterClusters(cumulative_cloud, centers_cloud, cluster_tolerance_, 3.0 * clouds_used_ / 4.0, clouds_used_);
     }
   }
 
@@ -443,8 +427,7 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
     if (save_to_file_) {
       std::vector<pcl::PointXYZ> sorted_centers;
       sortPatternCenters(centers_cloud, sorted_centers);
-      for (std::vector<pcl::PointXYZ>::iterator it = sorted_centers.begin();
-           it < sorted_centers.end(); ++it) {
+      for (std::vector<pcl::PointXYZ>::iterator it = sorted_centers.begin(); it < sorted_centers.end(); ++it) {
         savefile << it->x << ", " << it->y << ", " << it->z << ", ";
       }
       savefile << cumulative_cloud->width;
@@ -465,26 +448,21 @@ void callback(const PointCloud2::ConstPtr &laser_cloud) {
 
 void param_callback(velo2cam_stereoHough::LidarConfig &config, uint32_t level) {
   passthrough_radius_min_ = config.passthrough_radius_min;
-  ROS_INFO("[LiDAR] New passthrough_radius_min_ threshold: %f",
-           passthrough_radius_min_);
+  ROS_INFO("[LiDAR] New passthrough_radius_min_ threshold: %f", passthrough_radius_min_);
   passthrough_radius_max_ = config.passthrough_radius_max;
-  ROS_INFO("[LiDAR] New passthrough_radius_max_ threshold: %f",
-           passthrough_radius_max_);
+  ROS_INFO("[LiDAR] New passthrough_radius_max_ threshold: %f", passthrough_radius_max_);
   circle_radius_ = config.circle_radius;
   ROS_INFO("[LiDAR] New pattern circle radius: %f", circle_radius_);
   axis_[0] = config.x;
   axis_[1] = config.y;
   axis_[2] = config.z;
-  ROS_INFO("[LiDAR] New normal axis for plane segmentation: %f, %f, %f",
-           axis_[0], axis_[1], axis_[2]);
+  ROS_INFO("[LiDAR] New normal axis for plane segmentation: %f, %f, %f", axis_[0], axis_[1], axis_[2]);
   angle_threshold_ = config.angle_threshold;
   ROS_INFO("[LiDAR] New angle threshold: %f", angle_threshold_);
   centroid_distance_min_ = config.centroid_distance_min;
-  ROS_INFO("[LiDAR] New minimum distance between centroids: %f",
-           centroid_distance_min_);
+  ROS_INFO("[LiDAR] New minimum distance between centroids: %f", centroid_distance_min_);
   centroid_distance_max_ = config.centroid_distance_max;
-  ROS_INFO("[LiDAR] New maximum distance between centroids: %f",
-           centroid_distance_max_);
+  ROS_INFO("[LiDAR] New maximum distance between centroids: %f", centroid_distance_max_);
 }
 
 void warmup_callback(const std_msgs::Empty::ConstPtr &msg) {
@@ -528,19 +506,16 @@ int main(int argc, char **argv) {
   nh_.param("rings_count", rings_count_, 64);
   nh_.param("skip_warmup", skip_warmup_, false);
   nh_.param("save_to_file", save_to_file_, false);
-  nh_.param("csv_name", csv_name,
-            "lidar_pattern_" + currentDateTime() + ".csv");
+  nh_.param("csv_name", csv_name, "lidar_pattern_" + currentDateTime() + ".csv");
 
-  cumulative_cloud =
-      pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
+  cumulative_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(new pcl::PointCloud<pcl::PointXYZ>);
 
   dynamic_reconfigure::Server<velo2cam_stereoHough::LidarConfig> server;
   dynamic_reconfigure::Server<velo2cam_stereoHough::LidarConfig>::CallbackType f;
   f = boost::bind(param_callback, _1, _2);
   server.setCallback(f);
 
-  ros::Subscriber warmup_sub =
-      nh.subscribe("warmup_switch", 1, warmup_callback);
+  ros::Subscriber warmup_sub = nh.subscribe("warmup_switch", 1, warmup_callback);
 
   if (skip_warmup_) {
     ROS_WARN("Skipping warmup");
@@ -557,8 +532,7 @@ int main(int argc, char **argv) {
       savefile << "det1_x, det1_y, det1_z, det2_x, det2_y, det2_z, det3_x, "
                   "det3_y, det3_z, det4_x, det4_y, det4_z, cent1_x, cent1_y, "
                   "cent1_z, cent2_x, cent2_y, cent2_z, cent3_x, cent3_y, "
-                  "cent3_z, cent4_x, cent4_y, cent4_z, it"
-               << endl;
+                  "cent3_z, cent4_x, cent4_y, cent4_z, it" << endl;
     }
   }
 

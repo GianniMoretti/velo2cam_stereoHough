@@ -13,14 +13,14 @@
     <rosparam>
       use_camera_info: True
       debug_view: fasle
-      canny_threshold: 81
-      accumulator_threshold: 43
+      canny_threshold: 168
+      accumulator_threshold: 71
       gaussian_blur_size: 9
       gaussian_sigma_x: 1
       gaussian_sigma_y: 1
       dp: 2
-      min_circle_radius: 62
-      max_circle_radius: 68
+      min_circle_radius: 30
+      max_circle_radius: 35
       queue_size: 4
     </rosparam>
   </node>
@@ -32,14 +32,14 @@
     <rosparam>
       use_camera_info: True
       debug_view: fasle
-      canny_threshold: 81
-      accumulator_threshold: 43
+      canny_threshold: 168
+      accumulator_threshold: 71
       gaussian_blur_size: 9
       gaussian_sigma_x: 1
       gaussian_sigma_y: 1
       dp: 2
-      min_circle_radius: 62
-      max_circle_radius: 68
+      min_circle_radius: 30
+      max_circle_radius: 35
       queue_size: 4
     </rosparam>
   </node>
