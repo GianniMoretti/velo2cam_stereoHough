@@ -271,6 +271,7 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
 
   if (!S2_WARMUP_DONE) {
     return;
+
   }
 
   if (DEBUG) ROS_INFO("sensor1 (%s) pattern ready!", sensor1_frame_id.c_str());
@@ -284,8 +285,7 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
     sstream << "rotated_" << sensor1_frame_id;
     sensor1_rotated_frame_id = sstream.str();
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr xy_sensor1_cloud(
-        new pcl::PointCloud<pcl::PointXYZ>());
+    pcl::PointCloud<pcl::PointXYZ>::Ptr xy_sensor1_cloud(new pcl::PointCloud<pcl::PointXYZ>());
 
     fromROSMsg(sensor1_centroids->cloud, *xy_sensor1_cloud);
 
@@ -475,10 +475,8 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
     tf::TransformListener listener;
     tf::StampedTransform transform;
     try {
-      listener.waitForTransform(sensor2_rotated_frame_id, sensor2_frame_id,
-                                ros::Time(0), ros::Duration(20.0));
-      listener.lookupTransform(sensor2_rotated_frame_id, sensor2_frame_id,
-                                ros::Time(0), transform);
+      listener.waitForTransform(sensor2_rotated_frame_id, sensor2_frame_id, ros::Time(0), ros::Duration(20.0));
+      listener.lookupTransform(sensor2_rotated_frame_id, sensor2_frame_id, ros::Time(0), transform);
     } catch (tf::TransformException &ex) {
       ROS_WARN("TF exception:\n%s", ex.what());
       return;
@@ -499,7 +497,6 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
 
   if (DEBUG) {
     colourCenters(sensor2_vector, isensor2_cloud);
-
     sensor_msgs::PointCloud2 colour_cloud;
     pcl::toROSMsg(*isensor2_cloud, colour_cloud);
     colour_cloud.header.frame_id = is_sensor2_cam ? sensor2_rotated_frame_id : sensor2_frame_id;
@@ -507,8 +504,8 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
   }
 
   sensor2_buffer[TARGET_POSITIONS_COUNT].push_back(
-      std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>,
-                std::vector<pcl::PointXYZ>>(
+          std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>,
+          std::vector<pcl::PointXYZ>>(
           sensor2_centroids->total_iterations,
           sensor2_centroids->cluster_iterations, *sensor2_cloud,
           sensor2_vector));
