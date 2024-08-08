@@ -76,7 +76,6 @@ add_executable(velo2cam_stereoHough src/velo2cam_stereoHough.cpp)
 add_executable(v2c_plane_segmentation src/plane.cpp)
 add_executable(v2c_disp_masker src/disp_masker.cpp)
 add_executable(my_depth src/my_depth.cpp)
-add_executable(hough_circles src/hough_circles.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -108,12 +107,6 @@ add_dependencies(my_depth
   ${PROJECT_NAME}_gencfg
 )
 
-add_dependencies(hough_circles
-  ${catkin_EXPORTED_TARGETS}
-  velo2cam_stereoHough_generate_messages_cpp
-  ${PROJECT_NAME}_gencfg
-)
-
 ## Specify libraries to link a library or executable target against
 target_link_libraries(stereo_pattern
   ${catkin_LIBRARIES}
@@ -140,10 +133,6 @@ target_link_libraries(v2c_disp_masker
   ${OpenCV_LIBRARIES}
 )
 target_link_libraries(my_depth
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBRARIES}
-)
-target_link_libraries(hough_circles
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )

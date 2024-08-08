@@ -67,10 +67,8 @@ typedef Eigen::Matrix<double, 12, 1> Vector12d;
 
 tf::Transform transf;
 
-std::vector<std::vector<std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>,std::vector<pcl::PointXYZ>>>>
-    sensor1_buffer;
-std::vector<std::vector<std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>, std::vector<pcl::PointXYZ>>>>
-    sensor2_buffer;
+std::vector<std::vector<std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>,std::vector<pcl::PointXYZ>>>> sensor1_buffer;
+std::vector<std::vector<std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>, std::vector<pcl::PointXYZ>>>> sensor2_buffer;
 
 int S1_WARMUP_COUNT = 0, S2_WARMUP_COUNT = 0;
 bool S1_WARMUP_DONE = false, S2_WARMUP_DONE = false;
@@ -118,15 +116,12 @@ void calibrateExtrinsics(int seek_iter = -1) {
 
     for (int i = 0; i < TARGET_POSITIONS_COUNT + 1; ++i) {
       if (DEBUG)
-        ROS_INFO("Target position: %d, Last sensor2: %d, last sensor1: %d",
-                 i + 1, std::get<0>(sensor2_buffer[i].back()),
-                 std::get<0>(sensor1_buffer[i].back()));
+        ROS_INFO("Target position: %d, Last sensor2: %d, last sensor1: %d", i + 1, std::get<0>(sensor2_buffer[i].back()),std::get<0>(sensor1_buffer[i].back()));
       // Sensor 1
       auto it1 = std::find_if(
           sensor1_buffer[i].begin(), sensor1_buffer[i].end(),
           [&seek_iter](
-              const std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>,
-                               std::vector<pcl::PointXYZ>> &e) {
+              const std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>, std::vector<pcl::PointXYZ>> &e) {
             return std::get<0>(e) == seek_iter;
           });
       if (it1 == sensor1_buffer[i].end()) {
@@ -134,11 +129,8 @@ void calibrateExtrinsics(int seek_iter = -1) {
         return;
       }
 
-      local_sensor1_vector.insert(
-          local_sensor1_vector.end(), std::get<3>(*it1).begin(),
-          std::get<3>(*it1).end());  // Add sorted centers (for equations)
-      *local_sensor1_cloud +=
-          std::get<2>(*it1);  // Add centers cloud (for registration)
+      local_sensor1_vector.insert(local_sensor1_vector.end(), std::get<3>(*it1).begin(), std::get<3>(*it1).end());  // Add sorted centers (for equations)
+      *local_sensor1_cloud += std::get<2>(*it1);  // Add centers cloud (for registration)
       used_sensor1 = std::get<1>(*it1);
       total_sensor1 = std::get<0>(*it1);
 
@@ -196,10 +188,8 @@ void calibrateExtrinsics(int seek_iter = -1) {
   }
 
   // SVD code
-  pcl::PointCloud<pcl::PointXYZ>::Ptr sorted_centers1(
-      new pcl::PointCloud<pcl::PointXYZ>());
-  pcl::PointCloud<pcl::PointXYZ>::Ptr sorted_centers2(
-      new pcl::PointCloud<pcl::PointXYZ>());
+  pcl::PointCloud<pcl::PointXYZ>::Ptr sorted_centers1(new pcl::PointCloud<pcl::PointXYZ>());
+  pcl::PointCloud<pcl::PointXYZ>::Ptr sorted_centers2(new pcl::PointCloud<pcl::PointXYZ>());
 
   for (int i = 0; i < local_sensor1_vector.size(); ++i) {
     sorted_centers1->push_back(local_sensor1_vector[i]);
@@ -208,8 +198,7 @@ void calibrateExtrinsics(int seek_iter = -1) {
 
   Eigen::Matrix4f final_transformation;
   const pcl::registration::TransformationEstimationSVD<pcl::PointXYZ,pcl::PointXYZ> trans_est_svd(true);
-  trans_est_svd.estimateRigidTransformation(*sorted_centers1, *sorted_centers2,
-                                            final_transformation);
+  trans_est_svd.estimateRigidTransformation(*sorted_centers1, *sorted_centers2, final_transformation);
 
   tf::Matrix3x3 tf3d;
   tf3d.setValue(final_transformation(0, 0), final_transformation(0, 1),
@@ -228,9 +217,7 @@ void calibrateExtrinsics(int seek_iter = -1) {
   transf.setRotation(tfqt);
 
   static tf::TransformBroadcaster br;
-  tf_sensor1_sensor2 = tf::StampedTransform(transf.inverse(), ros::Time::now(),
-                                            sensor1_final_transformation_frame,
-                                            sensor2_final_transformation_frame);
+  tf_sensor1_sensor2 = tf::StampedTransform(transf.inverse(), ros::Time::now(), sensor1_final_transformation_frame, sensor2_final_transformation_frame);
   if (publish_tf_) br.sendTransform(tf_sensor1_sensor2);
 
   tf::Transform inverse = tf_sensor1_sensor2.inverse();
@@ -256,7 +243,7 @@ void calibrateExtrinsics(int seek_iter = -1) {
 }
 
 void sensor1_callback(
-    const velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor1_centroids) {
+  const velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor1_centroids) {
   sensor1_frame_id = sensor1_centroids->header.frame_id;
   if (!S1_WARMUP_DONE) {
     S1_WARMUP_COUNT++;
@@ -437,13 +424,11 @@ void sensor1_callback(
   }
 }
 
-void sensor2_callback(
-    velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_centroids) {
+void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_centroids) {
   sensor2_frame_id = sensor2_centroids->header.frame_id;
   if (!S2_WARMUP_DONE && S1_WARMUP_DONE) {
     S2_WARMUP_COUNT++;
-    cout << "Clusters from " << sensor2_frame_id << ": " << S2_WARMUP_COUNT
-         << "/10" << '\r' << flush;
+    cout << "Clusters from " << sensor2_frame_id << ": " << S2_WARMUP_COUNT<< "/10" << '\r' << flush;
     if (S2_WARMUP_COUNT >= 10)  // TODO: Change to param?
     {
       cout << endl;
@@ -485,10 +470,8 @@ void sensor2_callback(
       } else {  // Reset counter to allow further warmup
         S2_WARMUP_COUNT = 0;
       }
-      sensor1_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>(
-          "cloud1", 100, sensor1_callback);
-      sensor2_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>(
-          "cloud2", 100, sensor2_callback);
+      sensor1_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>("cloud1", 100, sensor1_callback);
+      sensor2_sub = nh_->subscribe<velo2cam_stereoHough::ClusterCentroids>("cloud2", 100, sensor2_callback);
     }
     return;
   } else if (!S2_WARMUP_DONE) {
@@ -516,7 +499,7 @@ void sensor2_callback(
       listener.waitForTransform(sensor2_rotated_frame_id, sensor2_frame_id,
                                 ros::Time(0), ros::Duration(20.0));
       listener.lookupTransform(sensor2_rotated_frame_id, sensor2_frame_id,
-                               ros::Time(0), transform);
+                                ros::Time(0), transform);
     } catch (tf::TransformException &ex) {
       ROS_WARN("TF exception:\n%s", ex.what());
       return;
@@ -547,7 +530,7 @@ void sensor2_callback(
 
   sensor2_buffer[TARGET_POSITIONS_COUNT].push_back(
       std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>,
-                 std::vector<pcl::PointXYZ>>(
+                std::vector<pcl::PointXYZ>>(
           sensor2_centroids->total_iterations,
           sensor2_centroids->cluster_iterations, *sensor2_cloud,
           sensor2_vector));
@@ -689,8 +672,7 @@ int main(int argc, char **argv) {
       if (DEBUG) ROS_INFO("Opening %s", os.str().c_str());
       savefile.open(os.str().c_str());
       savefile << "it, x, y, z, r, p, y, used_sen1, used_sen2, total_sen1, "
-                  "total_sen2"
-               << endl;
+                  "total_sen2" << endl;
     }
   }
 
@@ -700,8 +682,7 @@ int main(int argc, char **argv) {
     ROS_WARN("Skipping warmup");
   } else {
     cout << "Please, adjust the filters for each sensor before the calibration "
-            "starts."
-         << endl;
+            "starts." << endl;
   }
 
   ros::Rate loop_rate(30);

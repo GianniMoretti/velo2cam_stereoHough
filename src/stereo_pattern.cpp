@@ -111,12 +111,29 @@ std_msgs::Header header_;
 
 void sortCenters(std::vector<opencv_apps::Point2D>& centers) {
     std::sort(centers.begin(), centers.end(), [](const opencv_apps::Point2D& a, const opencv_apps::Point2D& b) {
-        // Primo ordina per il primo elemento, poi per il secondo
-        if (a.x == b.x) {
-            return a.y < b.y;
-        }
-        return a.x < b.x;
+        // Primo ordina per il primo elemento
+        return a.y < b.y;
     });
+    //TODO: da vedere che centers usato così sicuro non va bene
+    if (centers[0].x > centers[1].x){
+        opencv_apps::Point2D tmp;
+        tmp = centers[0];
+        centers[0] = centers[1];
+        centers[1] = tmp;
+    }
+    if (centers[2].x > centers[3].x){
+        opencv_apps::Point2D tmp;
+        tmp = centers[2];
+        centers[2] = centers[3];
+        centers[3] = tmp;
+    }
+    // std::sort(centers.begin(), centers.end(), [](const opencv_apps::Point2D& a, const opencv_apps::Point2D& b) {
+    //     // Primo ordina per il primo elemento, poi per il secondo
+    //     if (a.x == b.x) {
+    //         return a.y < b.y;
+    //     }
+    //     return a.x < b.x;
+    // });
 }
 
 line line_equation(opencv_apps::Point2D p1, opencv_apps::Point2D p2){
@@ -313,7 +330,8 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
 
                 if(images_used_ > warmup_cloud){
                     if(images_used_ % 10 == 0){
-                        // Esegui la segmentazione
+                        //TODO: Da cambiare
+                        // Esegui la segmentazione 
                         seg.setOptimizeCoefficients(true);
                         seg.setModelType(pcl::SACMODEL_SPHERE);
                         seg.setMethodType(pcl::SAC_RANSAC);
