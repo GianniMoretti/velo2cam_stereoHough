@@ -62,6 +62,8 @@ string sensor1_rotated_frame_id = "";
 string sensor2_frame_id = "";
 string sensor2_rotated_frame_id = "";
 
+int warm_up_value = 100;
+
 typedef Eigen::Matrix<double, 12, 12> Matrix12d;
 typedef Eigen::Matrix<double, 12, 1> Vector12d;
 
@@ -237,8 +239,8 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
   sensor1_frame_id = sensor1_centroids->header.frame_id;
   if (!S1_WARMUP_DONE) {
     S1_WARMUP_COUNT++;
-    cout << "Clusters from " << sensor1_frame_id << ": " << S1_WARMUP_COUNT << "/10" << '\r' << flush;
-    if (S1_WARMUP_COUNT >= 100)  // TODO: Change to param?
+    cout << "Clusters from " << sensor1_frame_id << ": " << S1_WARMUP_COUNT << "/" << warm_up_value <<'\r' << flush;
+    if (S1_WARMUP_COUNT >= warm_up_value)
     {
       cout << endl;
       sensor1_sub.shutdown();
@@ -252,8 +254,7 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
 
         if (!S2_WARMUP_DONE) {
           cout << "Filters for sensor 1 are adjusted now. Please, proceed with "
-                  "the other sensor."
-                << endl;
+                  "the other sensor." << endl;
         } else {  // Both sensors adjusted
           cout << "Warmup phase completed. Starting calibration phase." << endl;
           std_msgs::Empty myMsg;
@@ -271,7 +272,6 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
 
   if (!S2_WARMUP_DONE) {
     return;
-
   }
 
   if (DEBUG) ROS_INFO("sensor1 (%s) pattern ready!", sensor1_frame_id.c_str());
@@ -281,6 +281,7 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
   }
 
   if (is_sensor1_cam) {
+    ROS_INFO("Sono qui 1");
     std::ostringstream sstream;
     sstream << "rotated_" << sensor1_frame_id;
     sensor1_rotated_frame_id = sstream.str();
@@ -313,11 +314,9 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
   sortPatternCenters(sensor1_cloud, sensor1_vector);
   if (DEBUG) {
     colourCenters(sensor1_vector, isensor1_cloud);
-
     sensor_msgs::PointCloud2 colour_cloud;
     pcl::toROSMsg(*isensor1_cloud, colour_cloud);
-    colour_cloud.header.frame_id =
-        is_sensor1_cam ? sensor1_rotated_frame_id : sensor1_frame_id;
+    colour_cloud.header.frame_id = is_sensor1_cam ? sensor1_rotated_frame_id : sensor1_frame_id;
     colour_sensor1_pub.publish(colour_cloud);
   }
 
@@ -332,13 +331,13 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
 
   for (vector<pcl::PointXYZ>::iterator it = sensor1_vector.begin(); it < sensor1_vector.end(); ++it) {
     if (DEBUG)
-      cout << "l" << it - sensor1_vector.begin() << "="
-            << "[" << (*it).x << " " << (*it).y << " " << (*it).z << "]" << endl;
+      cout << "l" << it - sensor1_vector.begin() << "=" << "[" << (*it).x << " " << (*it).y << " " << (*it).z << "]" << endl;
   }
 
   // sync_iterations is designed to extract a calibration result every single
   // frame, so we cannot wait until TARGET_ITERATIONS
   if (sync_iterations) {
+    ROS_INFO("Sono qui 2");
     if (sensor2_count >= sensor1_count) {
       calibrateExtrinsics(sensor1_count);
     } else {
@@ -354,6 +353,7 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
 
   // Normal operation (sync_iterations=false)
   if (sensor1Received && sensor2Received) {
+    ROS_INFO("Sono qui 3");
     cout << min(sensor1_count, sensor2_count) << "/30 iterations" << '\r' << flush;
 
     std_msgs::Int32 it;
@@ -398,8 +398,7 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
       return;
     }
   } else {
-    if (tf_sensor1_sensor2.frame_id_ != "" &&
-        tf_sensor1_sensor2.child_frame_id_ != "") {
+    if (tf_sensor1_sensor2.frame_id_ != "" && tf_sensor1_sensor2.child_frame_id_ != "") {
       static tf::TransformBroadcaster br;
       tf_sensor1_sensor2.stamp_ = ros::Time::now();
       if (publish_tf_) br.sendTransform(tf_sensor1_sensor2);
@@ -411,8 +410,8 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
   sensor2_frame_id = sensor2_centroids->header.frame_id;
   if (!S2_WARMUP_DONE && S1_WARMUP_DONE) {
     S2_WARMUP_COUNT++;
-    cout << "Clusters from " << sensor2_frame_id << ": " << S2_WARMUP_COUNT << "/10" << '\r' << flush;
-    if (S2_WARMUP_COUNT >= 100)  // TODO: Change to param?
+    cout << "Clusters from " << sensor2_frame_id << ": " << S2_WARMUP_COUNT << "/" << warm_up_value << '\r' << flush;
+    if (S2_WARMUP_COUNT >= warm_up_value)
     {
       cout << endl;
       sensor1_sub.shutdown();
@@ -425,7 +424,6 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
       getline(cin, answer);
       if (answer == "y" || answer == "Y" || answer == "") {
         S2_WARMUP_DONE = !S2_WARMUP_DONE;
-
         if (!S1_WARMUP_DONE) {
           cout << "Filters for sensor 2 are adjusted now. Please, proceed with "
                   "the other sensor." << endl;
@@ -463,12 +461,12 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
   }
 
   if (is_sensor2_cam) {
+    ROS_INFO("Sono qui 4");
     std::ostringstream sstream;
     sstream << "rotated_" << sensor2_frame_id;
     sensor2_rotated_frame_id = sstream.str();
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr xy_sensor2_cloud(
-        new pcl::PointCloud<pcl::PointXYZ>());
+    pcl::PointCloud<pcl::PointXYZ>::Ptr xy_sensor2_cloud(new pcl::PointCloud<pcl::PointXYZ>());
 
     fromROSMsg(sensor2_centroids->cloud, *xy_sensor2_cloud);
 
@@ -492,9 +490,7 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
   }
 
   sensor2Received = true;
-
   sortPatternCenters(sensor2_cloud, sensor2_vector);
-
   if (DEBUG) {
     colourCenters(sensor2_vector, isensor2_cloud);
     sensor_msgs::PointCloud2 colour_cloud;
@@ -521,11 +517,11 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
   // sync_iterations is designed to extract a calibration result every single
   // frame, so we cannot wait until TARGET_ITERATIONS
   if (sync_iterations) {
+    ROS_INFO("Sono qui 5");
     if (sensor1_count >= sensor2_count) {
       calibrateExtrinsics(sensor2_count);
     } else {
-      if (tf_sensor1_sensor2.frame_id_ != "" &&
-          tf_sensor1_sensor2.child_frame_id_ != "") {
+      if (tf_sensor1_sensor2.frame_id_ != "" && tf_sensor1_sensor2.child_frame_id_ != "") {
         static tf::TransformBroadcaster br;
         tf_sensor1_sensor2.stamp_ = ros::Time::now();
         if (publish_tf_) br.sendTransform(tf_sensor1_sensor2);
@@ -536,6 +532,7 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
 
   // Normal operation (sync_iterations=false)
   if (sensor1Received && sensor2Received) {
+    ROS_INFO("Sono qui6");
     cout << min(sensor1_count, sensor2_count) << "/30 iterations" << '\r' << flush;
 
     std_msgs::Int32 it;
@@ -580,8 +577,7 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
       return;
     }
   } else {
-    if (tf_sensor1_sensor2.frame_id_ != "" &&
-        tf_sensor1_sensor2.child_frame_id_ != "") {
+    if (tf_sensor1_sensor2.frame_id_ != "" && tf_sensor1_sensor2.child_frame_id_ != "") {
       static tf::TransformBroadcaster br;
       tf_sensor1_sensor2.stamp_ = ros::Time::now();
       if (publish_tf_) br.sendTransform(tf_sensor1_sensor2);

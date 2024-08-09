@@ -13,8 +13,8 @@
     <rosparam>
       use_camera_info: True
       debug_view: fasle
-      canny_threshold: 168
-      accumulator_threshold: 71
+      canny_threshold: 132
+      accumulator_threshold: 60
       gaussian_blur_size: 9
       gaussian_sigma_x: 1
       gaussian_sigma_y: 1
@@ -32,8 +32,8 @@
     <rosparam>
       use_camera_info: True
       debug_view: fasle
-      canny_threshold: 168
-      accumulator_threshold: 71
+      canny_threshold: 132
+      accumulator_threshold: 60
       gaussian_blur_size: 9
       gaussian_sigma_x: 1
       gaussian_sigma_y: 1

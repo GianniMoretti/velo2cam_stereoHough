@@ -65,15 +65,16 @@ double target_radius_tolerance_;
 double cluster_tolerance_;
 int min_centers_found_;
 double min_cluster_factor_;
-bool WARMUP_DONE = true;
+bool WARMUP_DONE = false;
 bool skip_warmup_;
 bool save_to_file_;
 std::ofstream savefile;
+int refresh_cloud = 30;
+
 
 //Questi vanno presi dai parametri  Da cambiare questa cosa
 double accep_radius = 70.0;
 double delta_filter_accept = 8.0;
-int warmup_cloud = 30;
 
 // Crea l'oggetto di segmentazione SAC (Sample Consensus)
 pcl::SACSegmentation<pcl::PointXYZ> seg;
@@ -332,23 +333,22 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
                 // Forse andrebbe ruotato i punti prima?
                 cumulative_clouds[i]->push_back(circle_centers_TD[i]);
                 cumulative_cloud_centroid->push_back(circle_centers_TD[i]);
-
-                if(images_used_ > warmup_cloud){
-                    if(images_used_ % 10 == 0){
-                        // Esegui la segmentazione
-                        seg.setOptimizeCoefficients(true);
-                        seg.setModelType(pcl::SACMODEL_SPHERE);
-                        seg.setMethodType(pcl::SAC_RANSAC);
-                        seg.setDistanceThreshold(0.8);
-                        seg.setInputCloud(cumulative_clouds[i]);
-                        seg.segment(*inliers, *coefficients);
-                    }
-                    Eigen::Vector4f centroid;
-                    pcl::compute3DCentroid(*cumulative_clouds[i], *inliers, centroid);
-                    pcl::PointXYZ centroid_p(centroid[0], centroid[1], centroid[2]);
-                    if (DEBUG) ROS_INFO("[Stereo] New centroid %d position = x: %f, y: %f, z: %f", i, centroid_p.x, centroid_p.y, centroid_p.z);
-                    final_cloud->push_back(centroid_p);
-                }
+                // if(images_used_ % 10 == 0){
+                //     // Esegui la segmentazione
+                //     seg.setOptimizeCoefficients(true);
+                //     seg.setModelType(pcl::SACMODEL_SPHERE);
+                //     seg.setMethodType(pcl::SAC_RANSAC);
+                //     seg.setDistanceThreshold(0.8);
+                //     seg.setInputCloud(cumulative_clouds[i]);
+                //     seg.segment(*inliers, *coefficients);
+                // }
+                //if(images_used_ % refresh_cloud == 0){
+                Eigen::Vector4f centroid;
+                pcl::compute3DCentroid(*cumulative_clouds[i], centroid);
+                pcl::PointXYZ centroid_p(centroid[0], centroid[1], centroid[2]);
+                if (DEBUG) ROS_INFO("[Stereo] New centroid %d position = x: %f, y: %f, z: %f", i, centroid_p.x, centroid_p.y, centroid_p.z);
+                final_cloud->push_back(centroid_p);
+                //}
             }   
         }else{
             return;
@@ -404,12 +404,20 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
         }
 
         velo2cam_stereoHough::ClusterCentroids to_send;
+        // TODO: Da cambiare il frame
         to_send.header = left_circles_stp->header;
+        to_send.header.frame_id = "zed2i_left_camera_frame";
         to_send.total_iterations = images_proc_;
         to_send.cluster_iterations = images_used_;
         to_send.cloud = final_ros;
-
         final_pub.publish(to_send);
+        
+        // cumulative_cloud_centroid->clear();
+        // for(int i = 0; i < 4; i++){
+        //     cumulative_clouds[i]->clear();
+        // }  
+        // images_proc_ = 0;
+        // images_used_ = 0;
     }
 
     if (save_to_file_) {
