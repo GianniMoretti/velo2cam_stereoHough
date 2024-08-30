@@ -487,8 +487,7 @@ int main(int argc, char **argv) {
     rotated_pattern_pub = nh_.advertise<PointCloud2>("rotated_pattern", 1);
     cumulative_pub = nh_.advertise<PointCloud2>("cumulative_cloud", 1);
   }
-  centers_pub =
-      nh_.advertise<velo2cam_stereoHough::ClusterCentroids>("centers_cloud", 1);
+  centers_pub = nh_.advertise<velo2cam_stereoHough::ClusterCentroids>("centers_cloud", 1);
   coeff_pub = nh_.advertise<pcl_msgs::ModelCoefficients>("plane_model", 1);
 
   string csv_name;

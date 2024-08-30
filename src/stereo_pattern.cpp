@@ -73,7 +73,7 @@ int refresh_cloud = 30;
 
 
 //Questi vanno presi dai parametri  Da cambiare questa cosa
-double accep_radius = 70.0;
+double accept_radius = 80.0;
 double delta_filter_accept = 8.0;
 
 // Crea l'oggetto di segmentazione SAC (Sample Consensus)
@@ -163,7 +163,7 @@ bool areElementsSimilar(const std::vector<float>& vec, float epsilon) {
     return true; // Tutti gli elementi sono simili
 }
 
-bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accep_radius){
+bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accept_radius){
     //Controllo di plausibilità
     line line1 = line_equation(centers[0], centers[3]);
     line line2 = line_equation(centers[1], centers[2]);
@@ -189,13 +189,13 @@ bool filterCenters(std::vector<opencv_apps::Point2D> centers, double accep_radiu
     }
 
     // for (int i = 1; i < 4; ++i) { 
-    //     if (std::fabs(radius[i] - radius[0]) >= accep_radius) {
+    //     if (std::fabs(radius[i] - radius[0]) >= accept_radius) {
     //         if (DEBUG) ROS_INFO("[Stereo] Centers does not pass the filter, radius: %f", std::fabs(radius[i] - radius[0]));
     //         return false;
     //     }
     // }
-    double a = (accep_radius - delta_filter_accept);
-    double b = (accep_radius + delta_filter_accept);
+    double a = (accept_radius - delta_filter_accept);
+    double b = (accept_radius + delta_filter_accept);
     ROS_INFO("[Stereo]a: %f, b: %f", a, b);
     if (max_radius < a || max_radius > b) {
         if (DEBUG) ROS_INFO("[Stereo] Centers does not pass the filter, radius: %f", max_radius);
@@ -323,10 +323,10 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr final_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    if(filterCenters(left_centers, accep_radius)){
-        if(filterCenters(right_centers, accep_radius)){
+    if(filterCenters(left_centers, accept_radius)){
+        if(filterCenters(right_centers, accept_radius)){
             //I centri sono buoni posso calcolare i punti
-            std::vector<pcl::PointXYZ> circle_centers_TD = calculate_TD_Centers_proj(left_centers, right_centers);
+            std::vector<pcl::PointXYZ> circle_centers_TD = calculate_TD_Centers(left_centers, right_centers);
 
             for(int i = 0; i < 4; i++){
                 if (DEBUG) ROS_INFO("[Stereo] OK, adding centers to cumulative cloud x: %f, y: %f, z: %f",circle_centers_TD[i].x,circle_centers_TD[i].y,circle_centers_TD[i].z);
@@ -436,8 +436,10 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
 }
 
 void param_callback(velo2cam_stereoHough::StereoConfig &config, uint32_t level) {
+    accept_radius = config.accept_radius;
     circle_threshold_ = config.circle_threshold;
     ROS_INFO("[Stereo] New circle threshold: %f", circle_threshold_);
+    ROS_INFO("[Stereo] New accept radius: %f", accept_radius);
 }
 
 void warmup_callback(const std_msgs::Empty::ConstPtr &msg) {

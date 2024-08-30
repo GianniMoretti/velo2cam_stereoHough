@@ -1,0 +1,21 @@
+<launch>
+    <arg name="stdout" default="screen" />
+    <arg name="camera_name" default="/zed2i/zed_node/" />
+    <arg name="image_topic" default="image_raw_color" />
+    <arg name="camera_frame_name" default="zed2i_left_camera_frame"/>
+    <arg name="lidar_frame_name" default="velodyne"/>
+    <arg name="lidar_cloud_name" default="velodyne_points"/>
+    <arg name="sensor_id" default="0" />
+
+    <!-- Tranf from lidar to camera-->
+    <node pkg="tf" type="static_transform_publisher" name="velo2cam_tf" args="0.375123 -0.0250144  -0.816283 -0.0541892 -0.109031 -0.00662829 $(arg camera_frame_name) $(arg lidar_frame_name) 100" />
+
+    <!-- Our node -->
+    <node pkg="velo2cam_stereoHough" type="lidar_to_cameraview" name="lidar_to_camera_view" output="screen">
+        <param name="roll_camera" value="0.0" />
+        <param name="pitch_camera" value="-1.57" />
+        <param name="yaw_camera" value="-1.57"/>
+        <remap from="image_left" to="$(arg camera_name)/left_raw/$(arg image_topic)" />
+        <remap from="points" to="$(arg lidar_cloud_name)" />
+    </node>
+</launch>
