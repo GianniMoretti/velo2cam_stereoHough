@@ -19,6 +19,7 @@
 #include <iostream>
 #include <cv_bridge/cv_bridge.h>
 #include <dynamic_reconfigure/server.h>
+#include <algorithm>
 
 using namespace cv;
 using namespace std;
@@ -54,6 +55,27 @@ float yaw_camera = 0;
 
 double mapValue(double x, double input_min, double input_max, double output_min, double output_max) {
     return output_min + ((x - input_min) / (input_max - input_min)) * (output_max - output_min);
+}
+
+cv::Scalar getColor(float x, float minX, float maxX) {
+    // Normalizza la coordinata X
+    float normalizedX = (x - minX) / (maxX - minX);
+
+    float r, g, b;
+
+    if (normalizedX < 0.5f) {
+        // Dal rosso al verde
+        r = 1.0f - 2.0f * normalizedX;
+        g = 2.0f * normalizedX;
+        b = 0.0f;
+    } else {
+        // Dal verde al blu
+        r = 0.0f;
+        g = 1.0f - 2.0f * (normalizedX - 0.5f);
+        b = 2.0f * (normalizedX - 0.5f);
+    }
+
+    return cv::Scalar(r, g, b);
 }
 
 void callback(const sensor_msgs::ImageConstPtr& image_left, const PointCloud2::ConstPtr& cloud_msg) {
@@ -147,7 +169,6 @@ void callback(const sensor_msgs::ImageConstPtr& image_left, const PointCloud2::C
     ROS_INFO("[lidar_to_camera_view] Pub final cloud...");
 
     std::vector<cv::Point3d> image_points;
-    std::vector<float> z_cord;
     for (const auto& point : transformed_cloud->points) {
         if (point.z > 0){
             cv::Mat pt_3d = (cv::Mat_<double>(4, 1) << point.x, point.y, -point.z, 1);
@@ -164,14 +185,24 @@ void callback(const sensor_msgs::ImageConstPtr& image_left, const PointCloud2::C
         }
     }
 
-    // float max_iter = *(std::max_element(z_cord.begin(), z_cord.end()));
-    // float min_iter = *(std::min_element(z_cord.begin(), z_cord.end()));
+ // Trova l'elemento con la minima coordinata z
+    auto minElement = std::min_element(points.begin(), points.end(), 
+                                        [](const cv::Point3d& a, const cv::Point3d& b) {
+                                            return a.z < b.z;
+                                        });
+
+    // Trova l'elemento con la massima coordinata z
+    auto maxElement = std::max_element(points.begin(), points.end(), 
+                                        [](const cv::Point3d& a, const cv::Point3d& b) {
+                                            return a.z < b.z;
+                                        });
 
     for (const auto& pt : image_points) {
-        int color = (int)mapValue(pt.z, 0, 30, 255, 100);
+        //int color = (int)mapValue(pt.z, 0, 30, 255, 100);
         //Devi aggiungere dei controlli per vedere che stia nell'immagine
         cv::Point2d p (pt.x, pt.y);
-        cv::circle(img1, p, 3, cv::Scalar(0, color, 0), -1);
+        cv::Scalar c = getColor(pt.z, min_element->z, max_element->z);
+        cv::circle(img1, p, 3, c, -1);
     }
 
     sensor_msgs::ImagePtr ros_left_image = cv_bridge::CvImage(std_msgs::Header(), "bgr8", img1).toImageMsg();
