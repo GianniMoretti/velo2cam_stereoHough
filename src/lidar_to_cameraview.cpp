@@ -38,16 +38,17 @@ ros::Subscriber cam_info_sub;
 ros::Subscriber cam_img_sub;
 
 ros::Publisher My_depth_cloud_pub;
+//-0.330524 0.273133 -0.986594 -0.116133 0.00141425 -0.0183019
 
 // Definisci gli angoli di rotazione in radianti
-float roll = -0.00662829;   // Rotazione intorno all'asse x
-float pitch = -0.109031;  // Rotazione intorno all'asse y
-float yaw = -0.0541892;    // Rotazione intorno all'asse z
+float roll = -0.1161339;   // Rotazione intorno all'asse x
+float pitch = 0.00141425;  // Rotazione intorno all'asse y
+float yaw = -0.0183019;    // Rotazione intorno all'asse z
 
 // Definisci le traslazioni
-float tx = 0.375123;  // Traslazione lungo l'asse x
-float ty = -0.0250144;  // Traslazione lungo l'asse y
-float tz = -0.816283;  // Traslazione lungo l'asse z
+float tx = -0.330524;//0.330524;  // Traslazione lungo l'asse x
+float ty = 0.003133;  // Traslazione lungo l'asse y
+float tz = -0.986594;  // Traslazione lungo l'asse z
 
 float roll_camera = 0;
 float pitch_camera = 0;
@@ -60,22 +61,22 @@ double mapValue(double x, double input_min, double input_max, double output_min,
 cv::Scalar getColor(float x, float minX, float maxX) {
     // Normalizza la coordinata X
     float normalizedX = (x - minX) / (maxX - minX);
-
+    //ROS_INFO("NORM: %f", normalizedX);
     float r, g, b;
 
     if (normalizedX < 0.5f) {
-        // Dal rosso al verde
-        r = 1.0f - 2.0f * normalizedX;
-        g = 2.0f * normalizedX;
-        b = 0.0f;
-    } else {
-        // Dal verde al blu
+        // Dal blu al verde
         r = 0.0f;
+        g = 2.0f * normalizedX;
+        b = 1.0f - 2.0f * normalizedX;
+    } else {
+        // Dal verde al rosso
+        r = 2.0f * (normalizedX - 0.5f);
         g = 1.0f - 2.0f * (normalizedX - 0.5f);
-        b = 2.0f * (normalizedX - 0.5f);
+        b = 0.0f;
     }
 
-    return cv::Scalar(r, g, b);
+    return cv::Scalar(r * 255, g * 255, b * 255);
 }
 
 void callback(const sensor_msgs::ImageConstPtr& image_left, const PointCloud2::ConstPtr& cloud_msg) {
@@ -160,13 +161,14 @@ void callback(const sensor_msgs::ImageConstPtr& image_left, const PointCloud2::C
     // Applicazione della matrice di trasformazione
     pcl::transformPointCloud(*cloud, *transformed_cloud, finall_trasform);
 
+    ROS_INFO("[lidar_to_camera_view]Point trasformation");
     //Publishing the cloud
     PointCloud2 pub_cloud;
     pcl::toROSMsg(*transformed_cloud, pub_cloud);
     pub_cloud.header = image_left->header;
     pub_cloud.header.frame_id = "zed2i_left_camera_frame";
     My_depth_cloud_pub.publish(pub_cloud);
-    ROS_INFO("[lidar_to_camera_view] Pub final cloud...");
+    ROS_INFO("[lidar_to_camera_view]Pub trasformed cloud...");
 
     std::vector<cv::Point3d> image_points;
     for (const auto& point : transformed_cloud->points) {
@@ -175,7 +177,7 @@ void callback(const sensor_msgs::ImageConstPtr& image_left, const PointCloud2::C
             cv::Mat pt_2d = K * pt_3d;
             // Normalizza per ottenere le coordinate (x, y)
             pt_2d /= pt_2d.at<double>(2);
-            ROS_INFO("point2d: (%f,%f)", pt_2d.at<double>(0), pt_2d.at<double>(1));
+            //ROS_INFO("point2d: (%f,%f)", pt_2d.at<double>(0), pt_2d.at<double>(1));
             if(pt_2d.at<double>(0) >= 0 && pt_2d.at<double>(0) < camera_width)
             {
                 if(pt_2d.at<double>(1) >= 0 && pt_2d.at<double>(1) < camera_height){
@@ -186,25 +188,28 @@ void callback(const sensor_msgs::ImageConstPtr& image_left, const PointCloud2::C
     }
 
  // Trova l'elemento con la minima coordinata z
-    auto minElement = std::min_element(points.begin(), points.end(), 
+    cv::Point3d minElement = *std::min_element(image_points.begin(), image_points.end(), 
                                         [](const cv::Point3d& a, const cv::Point3d& b) {
                                             return a.z < b.z;
                                         });
 
     // Trova l'elemento con la massima coordinata z
-    auto maxElement = std::max_element(points.begin(), points.end(), 
+    cv::Point3d maxElement = *std::max_element(image_points.begin(), image_points.end(), 
                                         [](const cv::Point3d& a, const cv::Point3d& b) {
                                             return a.z < b.z;
                                         });
+
+    ROS_INFO("min: %f, max: %f", minElement.z ,maxElement.z);
 
     for (const auto& pt : image_points) {
         //int color = (int)mapValue(pt.z, 0, 30, 255, 100);
         //Devi aggiungere dei controlli per vedere che stia nell'immagine
         cv::Point2d p (pt.x, pt.y);
-        cv::Scalar c = getColor(pt.z, min_element->z, max_element->z);
+        cv::Scalar c = getColor(pt.z, minElement.z, maxElement.z);
+        //ROS_INFO("color: %f, %f, %f", c[0], c[1], c[2]);
         cv::circle(img1, p, 3, c, -1);
     }
-
+    ROS_INFO("[lidar_to_camera_view]Pub lidar points image");
     sensor_msgs::ImagePtr ros_left_image = cv_bridge::CvImage(std_msgs::Header(), "bgr8", img1).toImageMsg();
     left_camera_lidar_point.publish(ros_left_image);
 }

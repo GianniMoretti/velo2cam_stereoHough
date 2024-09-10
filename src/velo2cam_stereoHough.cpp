@@ -281,7 +281,6 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
   }
 
   if (is_sensor1_cam) {
-    ROS_INFO("Sono qui 1");
     std::ostringstream sstream;
     sstream << "rotated_" << sensor1_frame_id;
     sensor1_rotated_frame_id = sstream.str();
@@ -337,7 +336,6 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
   // sync_iterations is designed to extract a calibration result every single
   // frame, so we cannot wait until TARGET_ITERATIONS
   if (sync_iterations) {
-    ROS_INFO("Sono qui 2");
     if (sensor2_count >= sensor1_count) {
       calibrateExtrinsics(sensor1_count);
     } else {
@@ -353,8 +351,7 @@ void sensor1_callback(const velo2cam_stereoHough::ClusterCentroids::ConstPtr sen
 
   // Normal operation (sync_iterations=false)
   if (sensor1Received && sensor2Received) {
-    ROS_INFO("Sono qui 3");
-    cout << min(sensor1_count, sensor2_count) << "/30 iterations" << '\r' << flush;
+    cout << min(sensor1_count, sensor2_count) << "/" << TARGET_ITERATIONS << " iterations" << '\r' << flush;
 
     std_msgs::Int32 it;
     it.data = min(sensor1_count, sensor2_count);
@@ -530,7 +527,7 @@ void sensor2_callback(velo2cam_stereoHough::ClusterCentroids::ConstPtr sensor2_c
 
   // Normal operation (sync_iterations=false)
   if (sensor1Received && sensor2Received) {
-    cout << min(sensor1_count, sensor2_count) << "/30 iterations" << '\r' << flush;
+    cout << min(sensor1_count, sensor2_count) << "/" << TARGET_ITERATIONS << " iterations" << '\r' << flush;
 
     std_msgs::Int32 it;
     it.data = min(sensor1_count, sensor2_count);

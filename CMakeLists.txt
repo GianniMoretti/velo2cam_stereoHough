@@ -77,6 +77,7 @@ add_executable(v2c_plane_segmentation src/plane.cpp)
 add_executable(v2c_disp_masker src/disp_masker.cpp)
 add_executable(my_depth src/my_depth.cpp)
 add_executable(lidar_to_cameraview src/lidar_to_cameraview.cpp)
+add_executable(saveImg src/saveImg.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -114,6 +115,12 @@ add_dependencies(lidar_to_cameraview
   ${PROJECT_NAME}_gencfg
 )
 
+add_dependencies(saveImg
+  ${catkin_EXPORTED_TARGETS}
+  velo2cam_stereoHough_generate_messages_cpp
+  ${PROJECT_NAME}_gencfg
+)
+
 ## Specify libraries to link a library or executable target against
 target_link_libraries(stereo_pattern
   ${catkin_LIBRARIES}
@@ -144,6 +151,10 @@ target_link_libraries(my_depth
   ${OpenCV_LIBRARIES}
 )
 target_link_libraries(lidar_to_cameraview
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+)
+target_link_libraries(saveImg
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )
