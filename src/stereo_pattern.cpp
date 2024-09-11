@@ -364,6 +364,7 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
         PointCloud2 cumulative_ros;
         pcl::toROSMsg(*cumulative_cloud_centroid, cumulative_ros);
         cumulative_ros.header = left_circles_stp->header;
+        cumulative_ros.header.frame_id = "zed2i_left_camera_optical_frame";
         cumulative_pub.publish(cumulative_ros);
         ROS_INFO("[Stereo] %d/%d frames: %ld pts in cloud", images_used_, images_proc_, cumulative_cloud_centroid->points.size());
     }
@@ -398,6 +399,7 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
             PointCloud2 final_debug_ros;
             pcl::toROSMsg(*final_cloud, final_debug_ros);
             final_debug_ros.header = left_circles_stp->header;
+            final_debug_ros.header.frame_id = "zed2i_left_camera_optical_frame";
             final_debug_pub.publish(final_debug_ros);
             ROS_INFO("[Stereo] Pub final cloud...");
             ROS_INFO("----------------------------------------------------------------------------------");
@@ -406,18 +408,12 @@ void callback(const boost::shared_ptr<const opencv_apps::CircleArrayStamped> &le
         velo2cam_stereoHough::ClusterCentroids to_send;
         // TODO: Da cambiare il frame
         to_send.header = left_circles_stp->header;
-        to_send.header.frame_id = "zed2i_left_camera_frame";
+        to_send.header.frame_id = "zed2i_left_camera_optical_frame";
         to_send.total_iterations = images_proc_;
         to_send.cluster_iterations = images_used_;
         to_send.cloud = final_ros;
         final_pub.publish(to_send);
         
-        // cumulative_cloud_centroid->clear();
-        // for(int i = 0; i < 4; i++){
-        //     cumulative_clouds[i]->clear();
-        // }  
-        // images_proc_ = 0;
-        // images_used_ = 0;
     }
 
     if (save_to_file_) {

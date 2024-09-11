@@ -197,6 +197,8 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    file << "x cerchio,y cerchio,raggio,x cerlidar,y cerlidar\n";
+
     nh_.param("roll_camera", roll_camera, 0.0f);
     nh_.param("pitch_camera", pitch_camera, 0.0f);
     nh_.param("yaw_camera", yaw_camera, 0.0f);

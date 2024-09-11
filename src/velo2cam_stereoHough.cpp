@@ -75,7 +75,7 @@ std::vector<std::vector<std::tuple<int, int, pcl::PointCloud<pcl::PointXYZ>, std
 int S1_WARMUP_COUNT = 0, S2_WARMUP_COUNT = 0;
 bool S1_WARMUP_DONE = false, S2_WARMUP_DONE = false;
 int TARGET_POSITIONS_COUNT = 0;
-int TARGET_ITERATIONS = 100;
+int TARGET_ITERATIONS = 300;
 
 bool sync_iterations;
 bool save_to_file_;
@@ -687,37 +687,37 @@ int main(int argc, char **argv) {
 
   //WATNING: the frame of the zed2i camera is alrady rotated so this piece of code it's not necessary for me
   string sensor2_final_transformation_frame = sensor2_frame_id;
-  // if (is_sensor2_cam) {
-  //   sensor2_final_transformation_frame = sensor2_rotated_frame_id;
-  //   std::ostringstream sensor2_rot_stream_pub;
-  //   sensor2_rot_stream_pub << "0 0 0 -1.57079632679 0 -1.57079632679 " << sensor2_rotated_frame_id << " " << sensor2_frame_id << " 10";
-  //   string sensor2_rotation = sensor2_rot_stream_pub.str();
+  if (is_sensor2_cam) {
+    sensor2_final_transformation_frame = sensor2_rotated_frame_id;
+    std::ostringstream sensor2_rot_stream_pub;
+    sensor2_rot_stream_pub << "0 0 0 -1.57079632679 0 -1.57079632679 " << sensor2_rotated_frame_id << " " << sensor2_frame_id << " 10";
+    string sensor2_rotation = sensor2_rot_stream_pub.str();
 
-  //   TiXmlElement *sensor2_rotation_node = new TiXmlElement("node");
-  //   sensor2_rotation_node->SetAttribute("pkg", "tf");
-  //   sensor2_rotation_node->SetAttribute("type", "static_transform_publisher");
-  //   sensor2_rotation_node->SetAttribute("name", "sensor2_rot_tf");
-  //   sensor2_rotation_node->SetAttribute("args", sensor2_rotation);
-  //   root->LinkEndChild(sensor2_rotation_node);
-  // }
+    TiXmlElement *sensor2_rotation_node = new TiXmlElement("node");
+    sensor2_rotation_node->SetAttribute("pkg", "tf");
+    sensor2_rotation_node->SetAttribute("type", "static_transform_publisher");
+    sensor2_rotation_node->SetAttribute("name", "sensor2_rot_tf");
+    sensor2_rotation_node->SetAttribute("args", sensor2_rotation);
+    root->LinkEndChild(sensor2_rotation_node);
+  }
 
   string sensor1_final_transformation_frame = sensor1_frame_id;
-  // if (is_sensor1_cam) {
-  //   sensor1_final_transformation_frame = sensor1_rotated_frame_id;
-  //   std::ostringstream sensor1_rot_stream_pub;
-  //   sensor1_rot_stream_pub << "0 0 0 -1.57079632679 0 -1.57079632679 " << sensor1_rotated_frame_id << " " << sensor1_frame_id << " 10";
-  //   string sensor1_rotation = sensor1_rot_stream_pub.str();
+  if (is_sensor1_cam) {
+    sensor1_final_transformation_frame = sensor1_rotated_frame_id;
+    std::ostringstream sensor1_rot_stream_pub;
+    sensor1_rot_stream_pub << "0 0 0 -1.57079632679 0 -1.57079632679 " << sensor1_rotated_frame_id << " " << sensor1_frame_id << " 10";
+    string sensor1_rotation = sensor1_rot_stream_pub.str();
 
-  //   TiXmlElement *sensor1_rotation_node = new TiXmlElement("node");
-  //   sensor1_rotation_node->SetAttribute("pkg", "tf");
-  //   sensor1_rotation_node->SetAttribute("type", "static_transform_publisher");
-  //   sensor1_rotation_node->SetAttribute("name", "sensor1_rot_tf");
-  //   sensor1_rotation_node->SetAttribute("args", sensor1_rotation);
-  //   root->LinkEndChild(sensor1_rotation_node);
-  // }
+    TiXmlElement *sensor1_rotation_node = new TiXmlElement("node");
+    sensor1_rotation_node->SetAttribute("pkg", "tf");
+    sensor1_rotation_node->SetAttribute("type", "static_transform_publisher");
+    sensor1_rotation_node->SetAttribute("name", "sensor1_rot_tf");
+    sensor1_rotation_node->SetAttribute("args", sensor1_rotation);
+    root->LinkEndChild(sensor1_rotation_node);
+  }
 
   std::ostringstream sstream;
-  sstream << -yt << " " << xt << " " << zt << " " << yaw << " " << pitch << " "
+  sstream << xt << " " << yt << " " << zt << " " << yaw << " " << pitch << " "
           << roll << " " << sensor2_final_transformation_frame << " "
           << sensor1_final_transformation_frame << " 100";
   string tf_args = sstream.str();

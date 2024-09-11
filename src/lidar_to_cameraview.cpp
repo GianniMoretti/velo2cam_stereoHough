@@ -2,15 +2,17 @@
 #include <message_filters/sync_policies/exact_time.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <pcl/common/transforms.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl/common/eigen.h>
 #include <pcl/filters/extract_indices.h>
-#include <pcl/sample_consensus/sac_model_plane.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl_ros/transforms.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl_conversions/pcl_conversions.h>
-#include <pcl_msgs/ModelCoefficients.h>
-#include <pcl_msgs/PointIndices.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <sensor_msgs/CameraInfo.h>
-#include <std_msgs/Empty.h>
 #include <message_filters/time_synchronizer.h>
 #include <math.h>
 #include <opencv2/opencv.hpp>
@@ -18,8 +20,12 @@
 #include <vector>
 #include <iostream>
 #include <cv_bridge/cv_bridge.h>
-#include <dynamic_reconfigure/server.h>
 #include <algorithm>
+#include <tf/tf.h>
+#include <tf/transform_broadcaster.h>
+#include <tf/transform_listener.h>
+#include <string>
+#include <std_msgs/Empty.h>
 
 using namespace cv;
 using namespace std;
@@ -38,7 +44,8 @@ ros::Subscriber cam_info_sub;
 ros::Subscriber cam_img_sub;
 
 ros::Publisher My_depth_cloud_pub;
-//-0.330524 0.273133 -0.986594 -0.116133 0.00141425 -0.0183019
+
+//static_transform_publisher x y z yaw pitch roll frame_id child_frame_id period_in_ms 
 
 // Definisci gli angoli di rotazione in radianti
 float roll = -0.1161339;   // Rotazione intorno all'asse x
@@ -53,6 +60,11 @@ float tz = -0.986594;  // Traslazione lungo l'asse z
 float roll_camera = 0;
 float pitch_camera = 0;
 float yaw_camera = 0;
+
+
+//TODO: da mettere string per bene
+string frame_input;
+string frame_output;
 
 double mapValue(double x, double input_min, double input_max, double output_min, double output_max) {
     return output_min + ((x - input_min) / (input_max - input_min)) * (output_max - output_min);
@@ -98,68 +110,100 @@ void callback(const sensor_msgs::ImageConstPtr& image_left, const PointCloud2::C
 
     ROS_INFO("[lidar_to_camera_view]Cloud size : %i", count);
 
+    //Approccio senza utilizzare TF
+
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
+    
+    // // Converti da PointCloud2 ROS a PointCloud PCL
+    // pcl::fromROSMsg(*cloud_msg, *cloud);
+
+    // // Matrici di rotazione
+    // Eigen::Matrix3f R_x;
+    // R_x << 1, 0, 0,
+    //     0, cos(roll_camera), -sin(roll_camera),
+    //     0, sin(roll_camera), cos(roll_camera);
+
+    // Eigen::Matrix3f R_y;
+    // R_y << cos(pitch_camera), 0, sin(pitch_camera),
+    //     0, 1, 0,
+    //     -sin(pitch_camera), 0, cos(pitch_camera);
+
+    // Eigen::Matrix3f R_z;
+    // R_z << cos(yaw_camera), -sin(yaw_camera), 0,
+    //     sin(yaw_camera), cos(yaw_camera), 0,
+    //     0, 0, 1;
+
+    // // Matrice di rotazione combinata
+    // Eigen::Matrix3f R = R_z * R_y * R_x;
+
+    // // Matrice di rototraslazione
+    // Eigen::Matrix4f camera_rotated = Eigen::Matrix4f::Identity();
+    // camera_rotated.block<3,3>(0,0) = R;  // Inserisci la matrice di rotazione
+    // camera_rotated(0,3) = 0;  // Traslazione lungo x
+    // camera_rotated(1,3) = 0;  // Traslazione lungo y
+    // camera_rotated(2,3) = 0;  // Traslazione lungo z
+
+    // // Matrici di rotazione
+    // R_x << 1, 0, 0,
+    //     0, cos(roll), -sin(roll),
+    //     0, sin(roll), cos(roll);
+
+    // R_y << cos(pitch), 0, sin(pitch),
+    //     0, 1, 0,
+    //     -sin(pitch), 0, cos(pitch);
+
+    // R_z << cos(yaw), -sin(yaw), 0,
+    //     sin(yaw), cos(yaw), 0,
+    //     0, 0, 1;
+
+    // // Matrice di rotazione combinata
+    // R = R_z * R_y * R_x;
+
+    // // Matrice di rototraslazione
+    // Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
+    // transform.block<3,3>(0,0) = R;  // Inserisci la matrice di rotazione
+    // transform(0,3) = tx;  // Traslazione lungo x
+    // transform(1,3) = ty;  // Traslazione lungo y
+    // transform(2,3) = tz;  // Traslazione lungo z
+
+    // Eigen::Matrix4f finall_trasform = Eigen::Matrix4f::Identity();
+    // finall_trasform = camera_rotated * transform;
+
+    // // Creazione di una point cloud per i dati trasformati
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
+
+    // // Applicazione della matrice di trasformazione
+    // pcl::transformPointCloud(*cloud, *transformed_cloud, finall_trasform);
+
+    //Usando TF
+
     pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
     
-    // Converti da PointCloud2 ROS a PointCloud PCL
+    //Converti da PointCloud2 ROS a PointCloud PCL
     pcl::fromROSMsg(*cloud_msg, *cloud);
 
-    // Matrici di rotazione
-    Eigen::Matrix3f R_x;
-    R_x << 1, 0, 0,
-        0, cos(roll_camera), -sin(roll_camera),
-        0, sin(roll_camera), cos(roll_camera);
+    // Creiamo un listener per ottenere le trasformazioni tf
+    tf::TransformListener listener;
 
-    Eigen::Matrix3f R_y;
-    R_y << cos(pitch_camera), 0, sin(pitch_camera),
-        0, 1, 0,
-        -sin(pitch_camera), 0, cos(pitch_camera);
-
-    Eigen::Matrix3f R_z;
-    R_z << cos(yaw_camera), -sin(yaw_camera), 0,
-        sin(yaw_camera), cos(yaw_camera), 0,
-        0, 0, 1;
-
-    // Matrice di rotazione combinata
-    Eigen::Matrix3f R = R_z * R_y * R_x;
-
-    // Matrice di rototraslazione
-    Eigen::Matrix4f camera_rotated = Eigen::Matrix4f::Identity();
-    camera_rotated.block<3,3>(0,0) = R;  // Inserisci la matrice di rotazione
-    camera_rotated(0,3) = 0;  // Traslazione lungo x
-    camera_rotated(1,3) = 0;  // Traslazione lungo y
-    camera_rotated(2,3) = 0;  // Traslazione lungo z
-
-    // Matrici di rotazione
-    R_x << 1, 0, 0,
-        0, cos(roll), -sin(roll),
-        0, sin(roll), cos(roll);
-
-    R_y << cos(pitch), 0, sin(pitch),
-        0, 1, 0,
-        -sin(pitch), 0, cos(pitch);
-
-    R_z << cos(yaw), -sin(yaw), 0,
-        sin(yaw), cos(yaw), 0,
-        0, 0, 1;
-
-    // Matrice di rotazione combinata
-    R = R_z * R_y * R_x;
-
-    // Matrice di rototraslazione
-    Eigen::Matrix4f transform = Eigen::Matrix4f::Identity();
-    transform.block<3,3>(0,0) = R;  // Inserisci la matrice di rotazione
-    transform(0,3) = tx;  // Traslazione lungo x
-    transform(1,3) = ty;  // Traslazione lungo y
-    transform(2,3) = tz;  // Traslazione lungo z
-
-    Eigen::Matrix4f finall_trasform = Eigen::Matrix4f::Identity();
-    finall_trasform = camera_rotated * transform;
+    // Aspetta che la trasformazione sia disponibile
+    try {
+        listener.waitForTransform(frame_output, frame_input, ros::Time(0), ros::Duration(3.0));
+    } catch (tf::TransformException& ex) {
+        ROS_ERROR("Errore durante l'attesa della trasformazione: %s", ex.what());
+        return;
+    }
 
     // Creazione di una point cloud per i dati trasformati
     pcl::PointCloud<pcl::PointXYZ>::Ptr transformed_cloud(new pcl::PointCloud<pcl::PointXYZ>);
 
-    // Applicazione della matrice di trasformazione
-    pcl::transformPointCloud(*cloud, *transformed_cloud, finall_trasform);
+    // Applica la trasformazione da source_frame a target_frame
+    try {
+        pcl_ros::transformPointCloud(frame_input, *cloud, *transformed_cloud, listener);
+        ROS_INFO("Nuvola di punti trasformata con successo!");
+    } catch (tf::TransformException& ex) {
+        ROS_ERROR("Errore durante la trasformazione della nuvola di punti: %s", ex.what());
+        return;
+    }
 
     ROS_INFO("[lidar_to_camera_view]Point trasformation");
     //Publishing the cloud
@@ -235,6 +279,8 @@ int main(int argc, char **argv) {
     nh_.param("roll_camera", roll_camera, 0.0f);
     nh_.param("pitch_camera", pitch_camera, 0.0f);
     nh_.param("yaw_camera", yaw_camera, 0.0f);
+    nh_.param("frame_input", frame_input, string(""));
+    nh_.param("frame_output", frame_output, string(""));
 
     left_camera_lidar_point = nh_.advertise<sensor_msgs::Image>("left_camera_lidar_point", 1);
 

@@ -3,7 +3,7 @@
   <arg name="stdout" default="screen" />
   <arg name="camera_name" default="/zed2i/zed_node/" />
   <arg name="image_topic" default="image_rect_color" />
-  <arg name="frame_name" default="zed2i_left_camera_frame"/>
+  <arg name="frame_name" default="zed2i_left_camera_optical_frame"/>
   <arg name="sensor_id" default="0" />
 
   <!-- Circle detection left -->
@@ -44,12 +44,9 @@
     </rosparam>
   </node>
 
-  <!-- PCL generic nodelet manager (SERVE?) -->
-  <!-- <node pkg="nodelet" type="nodelet" name="stereo_pcl_manager_$(arg sensor_id)" args="manager" output="$(arg stdout)"/> -->
-
   <!-- Our node -->
   <node pkg="velo2cam_stereoHough" type="stereo_pattern" name="stereo_pattern_$(arg sensor_id)" output="screen"></node>
 
-  <!-- a cosa serve? -->
+  <!-- Per ruotare la camera da capire che farne -->
   <node pkg="tf" type="static_transform_publisher" name="stereo_ros_tf" args="0 0 0 -1.57079632679 0 -1.57079632679 rotated_$(arg frame_name) $(arg frame_name) 100"/>
 </launch>

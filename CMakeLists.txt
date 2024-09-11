@@ -71,11 +71,8 @@ include_directories(
 ## Declare cpp executables
 add_executable(lidar_pattern src/lidar_pattern.cpp)
 add_executable(stereo_pattern src/stereo_pattern.cpp)
-add_executable(mono_qr_pattern src/mono_qr_pattern.cpp)
 add_executable(velo2cam_stereoHough src/velo2cam_stereoHough.cpp)
 add_executable(v2c_plane_segmentation src/plane.cpp)
-add_executable(v2c_disp_masker src/disp_masker.cpp)
-add_executable(my_depth src/my_depth.cpp)
 add_executable(lidar_to_cameraview src/lidar_to_cameraview.cpp)
 add_executable(saveImg src/saveImg.cpp)
 
@@ -91,30 +88,19 @@ add_dependencies(stereo_pattern
   velo2cam_stereoHough_generate_messages_cpp
   ${PROJECT_NAME}_gencfg
 )
-add_dependencies(mono_qr_pattern
-  ${catkin_EXPORTED_TARGETS}
-  velo2cam_stereoHough_generate_messages_cpp
-  ${PROJECT_NAME}_gencfg
-)
 add_dependencies(velo2cam_stereoHough
   ${catkin_EXPORTED_TARGETS}
   velo2cam_stereoHough_generate_messages_cpp
   ${PROJECT_NAME}_gencfg
 )
-add_dependencies(v2c_plane_segmentation ${PROJECT_NAME}_gencfg)
-
-add_dependencies(my_depth
-  ${catkin_EXPORTED_TARGETS}
-  velo2cam_stereoHough_generate_messages_cpp
+add_dependencies(v2c_plane_segmentation 
   ${PROJECT_NAME}_gencfg
 )
-
 add_dependencies(lidar_to_cameraview
   ${catkin_EXPORTED_TARGETS}
   velo2cam_stereoHough_generate_messages_cpp
   ${PROJECT_NAME}_gencfg
 )
-
 add_dependencies(saveImg
   ${catkin_EXPORTED_TARGETS}
   velo2cam_stereoHough_generate_messages_cpp
@@ -130,10 +116,6 @@ target_link_libraries(lidar_pattern
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
 )
-target_link_libraries(mono_qr_pattern
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBRARIES}
-)
 target_link_libraries(velo2cam_stereoHough
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
@@ -141,14 +123,6 @@ target_link_libraries(velo2cam_stereoHough
 )
 target_link_libraries(v2c_plane_segmentation
   ${catkin_LIBRARIES}
-)
-target_link_libraries(v2c_disp_masker
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBRARIES}
-)
-target_link_libraries(my_depth
-  ${catkin_LIBRARIES}
-  ${OpenCV_LIBRARIES}
 )
 target_link_libraries(lidar_to_cameraview
   ${catkin_LIBRARIES}
