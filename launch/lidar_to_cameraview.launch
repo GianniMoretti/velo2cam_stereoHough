@@ -7,14 +7,12 @@
     <arg name="lidar_cloud_name" default="velodyne_points"/>
 
     <!-- Tranf from lidar to camera-->
-    <node pkg="tf" type="static_transform_publisher" name="sensor2_rot_tf" args="0 0 0 -1.57079632679 0 -1.57079632679 rotated_$(arg camera_frame_name) $(arg camera_frame_name) 10" />
-    <node pkg="tf" type="static_transform_publisher" name="velo2cam_tf" args="0.239204 -0.764877 -0.764194 0.0170123 -0.00600451 0.0295686 rotated_$(arg camera_frame_name) $(arg lidar_frame_name) 100" />
+    <node pkg="tf" type="static_transform_publisher" name="sensor2_rot_tf" args="0 0 0 -1.57079632679 0 -1.57079632679 rotated_$(arg camera_frame_name) $(arg camera_frame_name) 100" />
+    <node pkg="tf" type="static_transform_publisher" name="velo2cam_tf" args="0.478108 -0.595839 -0.660503 -0.0246376 0.00337393 0.0203268 rotated_$(arg camera_frame_name) $(arg lidar_frame_name) 100" />
 
     <!-- Our node -->
     <node pkg="velo2cam_stereoHough" type="lidar_to_cameraview" name="lidar_to_camera_view" output="screen">
-        <param name="roll_camera" value="0.0" />
-        <param name="pitch_camera" value="-1.57" />
-        <param name="yaw_camera" value="-1.57"/>
+        <param name="public_trasform_cloud" value="true" />
         <param name="frame_input" value="$(arg lidar_frame_name)" />
         <param name="frame_output" value="$(arg camera_frame_name)"/>
         <remap from="image_left" to="$(arg camera_name)/$(arg image_topic)" />

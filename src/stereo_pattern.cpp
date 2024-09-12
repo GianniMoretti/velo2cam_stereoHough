@@ -127,13 +127,6 @@ void sortCenters(std::vector<opencv_apps::Point2D>& centers) {
         centers[2] = centers[3];
         centers[3] = tmp;
     }
-    // std::sort(centers.begin(), centers.end(), [](const opencv_apps::Point2D& a, const opencv_apps::Point2D& b) {
-    //     // Primo ordina per il primo elemento, poi per il secondo
-    //     if (a.x == b.x) {
-    //         return a.y < b.y;
-    //     }
-    //     return a.x < b.x;
-    // });
 }
 
 line line_equation(opencv_apps::Point2D p1, opencv_apps::Point2D p2){
